@@ -1,0 +1,2095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nkwalink Emergency Response Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .emergency-pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-reported { background-color: #ef4444; }
+        .status-en-route { background-color: #f59e0b; }
+        .status-resolved { background-color: #10b981; }
+        .status-escalated { background-color: #8b5cf6; }
+        
+        .priority-high { border-left-color: #dc2626; }
+        .priority-medium { border-left-color: #f59e0b; }
+        .priority-low { border-left-color: #10b981; }
+        
+        .emergency-card {
+            transition: all 0.2s ease;
+        }
+        
+        .emergency-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .hotline-btn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            z-index: 40;
+            animation: pulse 3s infinite;
+        }
+        
+        .offline-indicator {
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+        }
+        
+        .online-indicator {
+            background: linear-gradient(45deg, #10b981, #059669);
+        }
+        
+        .heatmap-cell {
+            transition: all 0.3s ease;
+        }
+        
+        .heatmap-cell:hover {
+            transform: scale(1.1);
+        }
+        
+        .resource-pin {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .resource-pin:hover {
+            transform: translate(-50%, -100%) scale(1.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-red-600 text-white p-4 shadow-lg relative">
+        <div class="flex items-center justify-between max-w-md mx-auto">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                    <span class="text-red-600 font-bold text-sm">NK</span>
+                </div>
+                <h1 class="text-lg font-semibold">Nkwalink</h1>
+            </div>
+            <div class="flex items-center space-x-2">
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="w-3 h-3 rounded-full online-indicator"></div>
+                
+                <!-- Language Selector -->
+                <select id="languageSelect" class="bg-red-700 text-white text-sm rounded px-2 py-1 border-none">
+                    <option value="en">English</option>
+                    <option value="tw">Twi</option>
+                    <option value="ee">Ewe</option>
+                    <option value="ha">Hausa</option>
+                </select>
+                
+                <!-- Role Selector -->
+                <select id="roleSelect" class="bg-red-700 text-white text-sm rounded px-2 py-1 border-none">
+                    <option value="citizen">Citizen</option>
+                    <option value="responder">Responder</option>
+                    <option value="coordinator">Coordinator</option>
+                </select>
+                
+                <button id="profileBtn" class="w-8 h-8 bg-red-700 rounded-full flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Emergency Hotline Button (Always Visible) -->
+    <button id="hotlineBtn" class="hotline-btn w-14 h-14 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+        </svg>
+    </button>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 slide-in">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-4 4-4-4 4-4 .257-.257A6 6 0 1118 8zm-6-2a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800">Secure Access Required</h3>
+                <p class="text-gray-600 mt-2">Please enter your credentials to access the <span id="loginRoleText">responder</span> platform</p>
+            </div>
+
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">User ID</label>
+                    <input type="text" id="loginUserId" placeholder="Enter your user ID" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <div class="relative">
+                        <input type="password" id="loginPassword" placeholder="Enter your password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 pr-10" required>
+                        <button type="button" id="togglePassword" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    Invalid credentials. Please try again.
+                </div>
+
+                <div class="flex space-x-3 pt-4">
+                    <button type="button" id="cancelLogin" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium">
+                        Login
+                    </button>
+                </div>
+            </form>
+
+            <!-- Demo Credentials -->
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h4 class="text-sm font-semibold text-blue-800 mb-2">Demo Credentials</h4>
+                <div class="text-xs text-blue-700 space-y-1">
+                    <div><strong>Responder:</strong> resp001 / emergency123</div>
+                    <div><strong>Coordinator:</strong> coord001 / control456</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="max-w-md mx-auto pb-20">
+        <!-- Citizen Interface -->
+        <div id="citizenInterface" class="interface-content">
+            <!-- Navigation Tabs -->
+            <div class="bg-white border-b">
+                <div class="flex">
+                    <button class="tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm" data-tab="dashboard">
+                        Dashboard
+                    </button>
+                    <button class="tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="resources">
+                        Find Help
+                    </button>
+                </div>
+            </div>
+
+            <!-- Citizen Dashboard Tab -->
+            <div id="dashboardTab" class="tab-content">
+                <div class="p-4 space-y-6">
+                    <!-- Emergency Action Cards -->
+                    <div class="space-y-4">
+                        <button id="reportEmergencyTile" class="w-full bg-red-500 hover:bg-red-600 text-white p-6 rounded-xl shadow-lg emergency-pulse flex items-center space-x-4 transition-all">
+                            <div class="w-16 h-16 bg-red-400 rounded-full flex items-center justify-center">
+                                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="text-left">
+                                <h3 class="text-xl font-bold">Report Emergency</h3>
+                                <p class="text-red-100">Get immediate help for urgent situations</p>
+                            </div>
+                        </button>
+                        
+                        <button id="findHelpTile" class="w-full bg-blue-500 hover:bg-blue-600 text-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition-all">
+                            <div class="w-16 h-16 bg-blue-400 rounded-full flex items-center justify-center">
+                                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="text-left">
+                                <h3 class="text-xl font-bold">Find Help Centers</h3>
+                                <p class="text-blue-100">Locate nearby hospitals, police & fire stations</p>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Safety Tip of the Day -->
+                    <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200 shadow-sm">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <span class="text-2xl">💡</span>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-green-800 mb-2">Safety Tip of the Day</h3>
+                                <p class="text-green-700 leading-relaxed">Always keep emergency contacts saved in your phone. In Ghana, remember: Police (191), Fire (192), Ambulance (193). Program these numbers now and share them with your family.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Find Help Tab -->
+            <div id="resourcesTab" class="tab-content hidden">
+                <div class="p-4">
+                    <!-- Resource Filters -->
+                    <div class="flex space-x-2 mb-4">
+                        <select id="resourceTypeFilter" class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">All Types</option>
+                            <option value="hospital">Hospitals</option>
+                            <option value="fire_station">Fire Service</option>
+                            <option value="police">Police</option>
+                            <option value="medical">Ambulance</option>
+                            <option value="disaster">NADMO</option>
+                            <option value="humanitarian">Red Cross</option>
+                            <option value="maritime">Maritime</option>
+                            <option value="aviation">Aviation</option>
+                            <option value="mental_health">Mental Health</option>
+                            <option value="support">Support Services</option>
+                            <option value="environmental">Environmental</option>
+                            <option value="health">Health Services</option>
+                            <option value="utility">Utilities</option>
+                        </select>
+                        <button id="openNowFilter" class="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm hover:bg-green-200 transition-colors">
+                            Open Now
+                        </button>
+                        <button id="verifiedFilter" class="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm hover:bg-blue-200 transition-colors">
+                            Verified
+                        </button>
+                    </div>
+                    
+                    <h2 class="text-lg font-semibold text-gray-800 mb-4">Nearby Help Centers</h2>
+                    <div id="resourcesList" class="space-y-3">
+                        <!-- Resources will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+
+
+
+        </div>
+
+        <!-- Responder Dashboard -->
+        <div id="responderInterface" class="interface-content hidden">
+            <div class="p-4">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Responder Dashboard</h2>
+                
+                <!-- Navigation Tabs for Responders -->
+                <div class="bg-white border-b mb-4 rounded-lg">
+                    <div class="flex">
+                        <button class="resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm" data-tab="incidents">
+                            Active Incidents
+                        </button>
+                        <button class="resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="reports">
+                            Reports
+                        </button>
+                        <button class="resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="comms">
+                            Communications
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Incidents Tab -->
+                <div id="incidentsTab" class="resp-tab-content">
+                    <!-- Incident Queue Controls -->
+                    <div class="flex space-x-2 mb-4">
+                        <select id="sortBy" class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="urgency">Sort by Urgency</option>
+                            <option value="location">Sort by Location</option>
+                            <option value="time">Sort by Time</option>
+                        </select>
+                        <button id="refreshQueue" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors">
+                            Refresh
+                        </button>
+                    </div>
+                    
+                    <!-- Incident Queue -->
+                    <div id="incidentQueue" class="space-y-3">
+                        <!-- Incidents will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Reports Tab (Shared Dashboard) -->
+                <div id="respReportsTab" class="resp-tab-content hidden">
+                    <!-- Same reports dashboard as citizens but with escalation actions -->
+                    <div class="space-y-4">
+                        <!-- Quick Stats -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="bg-red-50 p-3 rounded-lg text-center">
+                                <div class="text-lg font-bold text-red-600">12</div>
+                                <div class="text-xs text-red-700">Critical</div>
+                            </div>
+                            <div class="bg-yellow-50 p-3 rounded-lg text-center">
+                                <div class="text-lg font-bold text-yellow-600">28</div>
+                                <div class="text-xs text-yellow-700">Pending</div>
+                            </div>
+                            <div class="bg-green-50 p-3 rounded-lg text-center">
+                                <div class="text-lg font-bold text-green-600">156</div>
+                                <div class="text-xs text-green-700">Resolved</div>
+                            </div>
+                        </div>
+
+                        <!-- Escalation Actions -->
+                        <div class="bg-white rounded-lg p-4 shadow-sm">
+                            <h3 class="font-semibold text-gray-800 mb-3">Quick Actions</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button class="py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors">
+                                    Escalate to NADMO
+                                </button>
+                                <button class="py-2 px-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
+                                    Request Backup
+                                </button>
+                                <button class="py-2 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors">
+                                    Alert Media
+                                </button>
+                                <button class="py-2 px-3 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors">
+                                    State of Emergency
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Reports List -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-4 border-b">
+                                <h3 class="font-semibold text-gray-800">Recent Reports & Escalations</h3>
+                            </div>
+                            <div class="divide-y" id="responderReportsList">
+                                <!-- Reports will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Communications Tab -->
+                <div id="commsTab" class="resp-tab-content hidden">
+                    <!-- Secure Communication Hub -->
+                    <div class="bg-white rounded-lg border p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-semibold text-gray-800">Secure Communications</h3>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span class="text-xs text-gray-600">Encrypted</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Communication Tabs -->
+                        <div class="flex space-x-1 mb-3 bg-gray-100 rounded-lg p-1">
+                            <button class="comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md bg-white text-gray-900 shadow-sm" data-comm="coordinator">
+                                Coordinator
+                            </button>
+                            <button class="comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md text-gray-600 hover:text-gray-900" data-comm="team">
+                                Team Chat
+                            </button>
+                            <button class="comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md text-gray-600 hover:text-gray-900" data-comm="alerts">
+                                Alerts
+                            </button>
+                        </div>
+
+                        <!-- Coordinator Chat -->
+                        <div id="coordinatorChat" class="comm-content">
+                            <div id="chatMessages" class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
+                                <div class="mb-2">
+                                    <span class="font-medium text-blue-600">Control Center:</span>
+                                    <span class="text-gray-700">Fire truck dispatched to Kumasi Market. ETA 10 minutes.</span>
+                                    <span class="text-xs text-gray-500 block">2 mins ago</span>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="font-medium text-green-600">You:</span>
+                                    <span class="text-gray-700">Acknowledged. En route to location.</span>
+                                    <span class="text-xs text-gray-500 block">1 min ago</span>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <input type="text" id="chatInput" placeholder="Type secure message..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                                <button id="sendChat" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Team Chat -->
+                        <div id="teamChat" class="comm-content hidden">
+                            <div class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
+                                <div class="mb-2">
+                                    <span class="font-medium text-purple-600">Responder Alpha:</span>
+                                    <span class="text-gray-700">Medical unit needed at Tema Station.</span>
+                                    <span class="text-xs text-gray-500 block">5 mins ago</span>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="font-medium text-orange-600">Responder Beta:</span>
+                                    <span class="text-gray-700">Copy that. Medical team dispatched.</span>
+                                    <span class="text-xs text-gray-500 block">3 mins ago</span>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <input type="text" placeholder="Message team..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                                <button class="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Priority Alerts -->
+                        <div id="alertsChat" class="comm-content hidden">
+                            <div class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
+                                <div class="mb-2 p-2 bg-red-50 border-l-4 border-red-500 rounded">
+                                    <span class="font-medium text-red-600">HIGH PRIORITY:</span>
+                                    <span class="text-gray-700">Multiple casualties reported at Ring Road.</span>
+                                    <span class="text-xs text-gray-500 block">Just now</span>
+                                </div>
+                                <div class="mb-2 p-2 bg-yellow-50 border-l-4 border-yellow-500 rounded">
+                                    <span class="font-medium text-yellow-600">MEDIUM:</span>
+                                    <span class="text-gray-700">Traffic accident cleared on Liberation Road.</span>
+                                    <span class="text-xs text-gray-500 block">10 mins ago</span>
+                                </div>
+                            </div>
+                            <div class="text-center text-xs text-gray-500">
+                                Priority alerts are broadcast automatically
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coordinator Console -->
+        <div id="coordinatorInterface" class="interface-content hidden">
+            <div class="p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">Coordinator Console</h2>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">PILOT PHASE</span>
+                        <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">LIVE</span>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs for Coordinators -->
+                <div class="bg-white border-b mb-4 rounded-lg">
+                    <div class="flex">
+                        <button class="coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm" data-tab="overview">
+                            Overview
+                        </button>
+                        <button class="coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="reports">
+                            Reports
+                        </button>
+                        <button class="coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="command">
+                            Command
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Overview Tab -->
+                <div id="overviewTab" class="coord-tab-content">
+                    <!-- Pilot Phase Features -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6 border border-blue-200">
+                        <div class="flex items-center mb-2">
+                            <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                            </svg>
+                            <h3 class="font-semibold text-blue-800">Pilot Phase Active</h3>
+                        </div>
+                        <p class="text-sm text-blue-700 mb-3">Testing with Greater Accra, Ashanti, and Northern regions. Real-time data collection and feedback integration enabled.</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="pilotFeedback" class="py-2 px-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
+                                Collect Feedback
+                            </button>
+                            <button id="pilotAnalytics" class="py-2 px-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors">
+                                View Analytics
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Heatmap -->
+                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
+                        <h3 class="font-semibold text-gray-800 mb-3">Incident Heatmap</h3>
+                        <div class="grid grid-cols-8 gap-1">
+                            <!-- Heatmap cells -->
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-500 mt-2">
+                            <span>Low Activity</span>
+                            <span>High Activity</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Resource Tracker -->
+                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
+                        <h3 class="font-semibold text-gray-800 mb-3">Resource Tracker</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-blue-600">24</div>
+                                <div class="text-sm text-gray-600">Volunteers</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-green-600">8</div>
+                                <div class="text-sm text-gray-600">Vehicles</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-orange-600">156</div>
+                                <div class="text-sm text-gray-600">Supplies</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Tab (Shared Dashboard) -->
+                <div id="coordReportsTab" class="coord-tab-content hidden">
+                    <!-- Same reports dashboard with full coordinator privileges -->
+                    <div class="space-y-4">
+                        <!-- Quick Stats -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="bg-red-50 p-3 rounded-lg text-center">
+                                <div class="text-lg font-bold text-red-600">12</div>
+                                <div class="text-xs text-red-700">Critical</div>
+                            </div>
+                            <div class="bg-yellow-50 p-3 rounded-lg text-center">
+                                <div class="text-lg font-bold text-yellow-600">28</div>
+                                <div class="text-xs text-yellow-700">Pending</div>
+                            </div>
+                            <div class="bg-green-50 p-3 rounded-lg text-center">
+                                <div class="text-lg font-bold text-green-600">156</div>
+                                <div class="text-xs text-green-700">Resolved</div>
+                            </div>
+                        </div>
+
+                        <!-- Full Escalation Actions -->
+                        <div class="bg-white rounded-lg p-4 shadow-sm">
+                            <h3 class="font-semibold text-gray-800 mb-3">Command Actions</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button class="py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors">
+                                    Escalate to NADMO
+                                </button>
+                                <button class="py-2 px-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
+                                    Deploy Resources
+                                </button>
+                                <button class="py-2 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors">
+                                    Media Broadcast
+                                </button>
+                                <button class="py-2 px-3 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors">
+                                    Emergency Protocol
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Reports List -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="p-4 border-b">
+                                <h3 class="font-semibold text-gray-800">All Reports & Escalations</h3>
+                            </div>
+                            <div class="divide-y" id="coordinatorReportsList">
+                                <!-- Reports will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Command Tab -->
+                <div id="commandTab" class="coord-tab-content hidden">
+                    <!-- Alert Composer -->
+                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
+                        <h3 class="font-semibold text-gray-800 mb-3">Broadcast Alert</h3>
+                        <textarea id="alertMessage" rows="3" placeholder="Compose alert message..." class="w-full p-3 border border-gray-300 rounded-lg mb-3"></textarea>
+                        <div class="flex space-x-2 mb-3">
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="smsChannel" checked class="rounded">
+                                <span class="text-sm">SMS</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="whatsappChannel" checked class="rounded">
+                                <span class="text-sm">WhatsApp</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="ussdChannel" class="rounded">
+                                <span class="text-sm">USSD</span>
+                            </label>
+                        </div>
+                        <button id="broadcastAlert" class="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors">
+                            Broadcast Alert
+                        </button>
+                    </div>
+                    
+                    <!-- Command Center Communications -->
+                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-semibold text-gray-800">Command Communications</h3>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span class="text-xs text-gray-600">Secure Channel</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Active Responders -->
+                        <div class="mb-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">Active Responders (8 online)</h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
+                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span class="text-sm">Fire Team Alpha</span>
+                                </div>
+                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
+                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span class="text-sm">Medical Unit 3</span>
+                                </div>
+                                <div class="flex items-center space-x-2 p-2 bg-yellow-50 rounded-lg">
+                                    <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                    <span class="text-sm">Police Unit 7</span>
+                                </div>
+                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
+                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span class="text-sm">Rescue Team B</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Command Chat -->
+                        <div class="mb-4">
+                            <div id="commandMessages" class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
+                                <div class="mb-2">
+                                    <span class="font-medium text-red-600">Fire Team Alpha:</span>
+                                    <span class="text-gray-700">Arrived at Kumasi Market. Fire contained.</span>
+                                    <span class="text-xs text-gray-500 block">1 min ago</span>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="font-medium text-blue-600">You:</span>
+                                    <span class="text-gray-700">Excellent work. Medical support en route.</span>
+                                    <span class="text-xs text-gray-500 block">30 secs ago</span>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <select id="commandTarget" class="p-2 border border-gray-300 rounded-lg text-sm">
+                                    <option value="all">All Units</option>
+                                    <option value="fire">Fire Teams</option>
+                                    <option value="medical">Medical Units</option>
+                                    <option value="police">Police Units</option>
+                                </select>
+                                <input type="text" id="commandInput" placeholder="Command message..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                                <button id="sendCommand" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Export Reports -->
+                    <div class="bg-white rounded-lg p-4 shadow-sm">
+                        <h3 class="font-semibold text-gray-800 mb-3">Export Reports</h3>
+                        <div class="flex space-x-2">
+                            <button id="exportPDF" class="flex-1 py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
+                                Export PDF
+                            </button>
+                            <button id="exportCSV" class="flex-1 py-2 px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm transition-colors">
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Emergency Report Modal -->
+    <div id="reportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto slide-in">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-gray-800">Report Emergency</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <form id="emergencyForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Emergency Type</label>
+                        <select id="emergencyType" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                            <option value="">Select emergency type</option>
+                            <option value="fire">🔥 Fire</option>
+                            <option value="flood">🌊 Flood</option>
+                            <option value="medical">🏥 Medical Emergency</option>
+                            <option value="accident">🚗 Accident</option>
+                            <option value="crime">🚨 Crime/Security</option>
+                            <option value="other">❓ Other</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Priority Level</label>
+                        <select id="priorityLevel" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                            <option value="high">🔴 High - Life threatening</option>
+                            <option value="medium">🟡 Medium - Urgent attention needed</option>
+                            <option value="low">🟢 Low - Non-urgent</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="locationInput" placeholder="Enter location or address" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                            <button type="button" id="useLocationBtn" class="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                                <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <textarea id="description" rows="3" placeholder="Describe the emergency situation..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Contact Number</label>
+                        <input type="tel" id="contactNumber" placeholder="Your phone number" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                    </div>
+
+                    <!-- Media Upload -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Attach Photo/Audio (Optional)</label>
+                        <div class="flex space-x-2">
+                            <button type="button" id="photoBtn" class="flex-1 py-3 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                                <span>Photo</span>
+                            </button>
+                            <button type="button" id="audioBtn" class="flex-1 py-3 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                </svg>
+                                <span>Audio</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-3 pt-4">
+                        <button type="button" id="cancelReport" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium">
+                            Submit Report
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full p-6 text-center slide-in">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Report Submitted</h3>
+            <p class="text-gray-600 mb-4">Your emergency report has been received. Help is on the way.</p>
+            <p class="text-sm text-gray-500 mb-6">Report ID: <span id="reportId" class="font-mono">NK-2024-001</span></p>
+            <button id="closeSuccess" class="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Voice Input Modal -->
+    <div id="voiceModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full p-6 text-center slide-in">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 emergency-pulse">
+                <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Voice Input</h3>
+            <p class="text-gray-600 mb-4">Speak now to describe your emergency</p>
+            <div class="flex space-x-3">
+                <button id="stopVoice" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Stop
+                </button>
+                <button id="useVoice" class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                    Use Recording
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data
+        const sampleAlerts = [
+            {
+                id: 1,
+                type: 'flood',
+                location: 'Accra Central',
+                region: 'accra',
+                time: '15 mins ago',
+                status: 'reported',
+                priority: 'high',
+                description: 'Heavy flooding on Ring Road Central. Avoid the area.',
+                verified: true
+            },
+            {
+                id: 2,
+                type: 'fire',
+                location: 'Kumasi Market',
+                region: 'kumasi',
+                time: '1 hour ago',
+                status: 'en-route',
+                priority: 'high',
+                description: 'Fire outbreak at Kejetia Market. Fire service responding.',
+                verified: true
+            },
+            {
+                id: 3,
+                type: 'medical',
+                location: 'Tema Station',
+                region: 'accra',
+                time: '2 hours ago',
+                status: 'resolved',
+                priority: 'medium',
+                description: 'Medical emergency resolved. Area is now safe.',
+                verified: true
+            }
+        ];
+
+        const ghanaEmergencyAgencies = [
+            // National Emergency Services
+            {
+                id: 1,
+                name: 'Ghana Police Service - Emergency',
+                type: 'police',
+                phone: '191',
+                altPhone: '+233-30-2773906',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: '24/7 Police Emergency Response'
+            },
+            {
+                id: 2,
+                name: 'Ghana National Fire Service',
+                type: 'fire_station',
+                phone: '192',
+                altPhone: '+233-30-2772266',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Fire Emergency & Rescue Services'
+            },
+            {
+                id: 3,
+                name: 'National Ambulance Service',
+                type: 'medical',
+                phone: '193',
+                altPhone: '+233-30-2684359',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Medical Emergency & Ambulance'
+            },
+            
+            // Major Hospitals - Accra
+            {
+                id: 4,
+                name: 'Korle-Bu Teaching Hospital',
+                type: 'hospital',
+                phone: '+233-30-2665401',
+                altPhone: '+233-30-2673396',
+                region: 'greater_accra',
+                status: 'open',
+                verified: true,
+                description: 'Major Teaching Hospital - Emergency Department'
+            },
+            {
+                id: 5,
+                name: '37 Military Hospital',
+                type: 'hospital',
+                phone: '+233-30-2776111',
+                altPhone: '+233-30-2779441',
+                region: 'greater_accra',
+                status: 'open',
+                verified: true,
+                description: 'Military Hospital - Emergency Services'
+            },
+            {
+                id: 6,
+                name: 'Ridge Hospital',
+                type: 'hospital',
+                phone: '+233-30-2225401',
+                altPhone: '+233-30-2231687',
+                region: 'greater_accra',
+                status: 'open',
+                verified: true,
+                description: 'Regional Hospital - Emergency Care'
+            },
+            
+            // Major Hospitals - Kumasi
+            {
+                id: 7,
+                name: 'Komfo Anokye Teaching Hospital',
+                type: 'hospital',
+                phone: '+233-32-2022308',
+                altPhone: '+233-32-2023676',
+                region: 'ashanti',
+                status: 'open',
+                verified: true,
+                description: 'Major Teaching Hospital - Kumasi'
+            },
+            
+            // Major Hospitals - Tamale
+            {
+                id: 8,
+                name: 'Tamale Teaching Hospital',
+                type: 'hospital',
+                phone: '+233-37-2022417',
+                altPhone: '+233-37-2023134',
+                region: 'northern',
+                status: 'open',
+                verified: true,
+                description: 'Northern Region Teaching Hospital'
+            },
+            
+            // Specialized Emergency Services
+            {
+                id: 9,
+                name: 'National Disaster Management Organisation (NADMO)',
+                type: 'disaster',
+                phone: '+233-30-2784298',
+                altPhone: '+233-24-4170000',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Disaster Response & Management'
+            },
+            {
+                id: 10,
+                name: 'Ghana Red Cross Society',
+                type: 'humanitarian',
+                phone: '+233-30-2662424',
+                altPhone: '+233-30-2777598',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Humanitarian Emergency Response'
+            },
+            {
+                id: 11,
+                name: 'Ghana Maritime Authority - Search & Rescue',
+                type: 'maritime',
+                phone: '+233-30-2666049',
+                altPhone: '+233-24-4000000',
+                region: 'coastal',
+                status: 'open',
+                verified: true,
+                description: 'Maritime Emergency & Rescue'
+            },
+            {
+                id: 12,
+                name: 'Ghana Civil Aviation Authority - Emergency',
+                type: 'aviation',
+                phone: '+233-30-2776171',
+                altPhone: '+233-30-2773298',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Aviation Emergency Response'
+            },
+            
+            // Regional Police Commands
+            {
+                id: 13,
+                name: 'Greater Accra Regional Police Command',
+                type: 'police',
+                phone: '+233-30-2664471',
+                altPhone: '+233-30-2221002',
+                region: 'greater_accra',
+                status: 'open',
+                verified: true,
+                description: 'Regional Police Headquarters'
+            },
+            {
+                id: 14,
+                name: 'Ashanti Regional Police Command',
+                type: 'police',
+                phone: '+233-32-2022446',
+                altPhone: '+233-32-2024712',
+                region: 'ashanti',
+                status: 'open',
+                verified: true,
+                description: 'Ashanti Regional Police'
+            },
+            {
+                id: 15,
+                name: 'Northern Regional Police Command',
+                type: 'police',
+                phone: '+233-37-2022018',
+                altPhone: '+233-37-2022446',
+                region: 'northern',
+                status: 'open',
+                verified: true,
+                description: 'Northern Regional Police'
+            },
+            
+            // Mental Health & Crisis Support
+            {
+                id: 16,
+                name: 'Accra Psychiatric Hospital',
+                type: 'mental_health',
+                phone: '+233-30-2773614',
+                altPhone: '+233-24-4000000',
+                region: 'greater_accra',
+                status: 'open',
+                verified: true,
+                description: 'Mental Health Crisis Support'
+            },
+            {
+                id: 17,
+                name: 'Domestic Violence & Victim Support Unit (DOVVSU)',
+                type: 'support',
+                phone: '+233-30-2664471',
+                altPhone: '+233-24-4170000',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Domestic Violence Support'
+            },
+            
+            // Environmental & Health Emergencies
+            {
+                id: 18,
+                name: 'Environmental Protection Agency - Emergency',
+                type: 'environmental',
+                phone: '+233-30-2664697',
+                altPhone: '+233-30-2662690',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Environmental Emergency Response'
+            },
+            {
+                id: 19,
+                name: 'Ghana Health Service - Emergency Response',
+                type: 'health',
+                phone: '+233-30-2681109',
+                altPhone: '+233-30-2685693',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Public Health Emergency Response'
+            },
+            
+            // Utility Emergency Services
+            {
+                id: 20,
+                name: 'Electricity Company of Ghana (ECG) - Emergency',
+                type: 'utility',
+                phone: '+233-30-2676727',
+                altPhone: '0302676727',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Electrical Emergency & Power Outages'
+            },
+            {
+                id: 21,
+                name: 'Ghana Water Company Limited - Emergency',
+                type: 'utility',
+                phone: '+233-30-2666781',
+                altPhone: '0302666781',
+                region: 'national',
+                status: 'open',
+                verified: true,
+                description: 'Water Supply Emergency'
+            }
+        ];
+
+        const sampleResources = ghanaEmergencyAgencies;
+
+        const sampleIncidents = [
+            {
+                id: 1,
+                type: 'fire',
+                location: 'Kumasi Market',
+                priority: 'high',
+                status: 'reported',
+                time: '10 mins ago',
+                assignedTo: 'Fire Team Alpha'
+            },
+            {
+                id: 2,
+                type: 'medical',
+                location: 'Accra Mall',
+                priority: 'medium',
+                status: 'en-route',
+                time: '25 mins ago',
+                assignedTo: 'Ambulance Unit 3'
+            }
+        ];
+
+        const escalationReports = [
+            {
+                id: 'ESC-001',
+                title: 'Flood Emergency - Accra Central',
+                type: 'flood',
+                region: 'greater_accra',
+                status: 'escalated',
+                priority: 'critical',
+                reportedBy: 'Citizen Report #NK-2024-156',
+                escalatedTo: 'NADMO',
+                time: '2 hours ago',
+                description: 'Severe flooding affecting 500+ residents. Multiple agencies coordinating response.',
+                agencies: ['NADMO', 'Ghana Red Cross', 'National Ambulance Service'],
+                updates: [
+                    { time: '2 hours ago', action: 'Escalated to NADMO', by: 'Coordinator Alpha' },
+                    { time: '1.5 hours ago', action: 'Red Cross deployed', by: 'NADMO Command' },
+                    { time: '45 mins ago', action: 'Evacuation center established', by: 'Red Cross Team' }
+                ]
+            },
+            {
+                id: 'ESC-002',
+                title: 'Industrial Fire - Tema Port',
+                type: 'fire',
+                region: 'greater_accra',
+                status: 'investigating',
+                priority: 'high',
+                reportedBy: 'Port Authority',
+                escalatedTo: 'Ghana National Fire Service',
+                time: '4 hours ago',
+                description: 'Chemical storage facility fire. Hazmat protocols activated.',
+                agencies: ['Fire Service', 'EPA', 'Maritime Authority'],
+                updates: [
+                    { time: '4 hours ago', action: 'Initial report received', by: 'Port Security' },
+                    { time: '3.5 hours ago', action: 'Fire service dispatched', by: 'Emergency Dispatch' },
+                    { time: '2 hours ago', action: 'EPA hazmat team arrived', by: 'Fire Commander' }
+                ]
+            },
+            {
+                id: 'ESC-003',
+                title: 'Medical Emergency - Kumasi Hospital',
+                type: 'medical',
+                region: 'ashanti',
+                status: 'resolved',
+                priority: 'medium',
+                reportedBy: 'Hospital Staff',
+                escalatedTo: 'Regional Health Directorate',
+                time: '6 hours ago',
+                description: 'Mass casualty incident from road accident. Successfully managed.',
+                agencies: ['Komfo Anokye Hospital', 'Ambulance Service', 'Police'],
+                updates: [
+                    { time: '6 hours ago', action: 'Mass casualty declared', by: 'Hospital Admin' },
+                    { time: '5 hours ago', action: 'Additional ambulances dispatched', by: 'Regional Coordinator' },
+                    { time: '3 hours ago', action: 'All patients stabilized', by: 'Medical Director' },
+                    { time: '1 hour ago', action: 'Incident resolved', by: 'Hospital Admin' }
+                ]
+            }
+        ];
+
+        // Language translations
+        const translations = {
+            en: {
+                reportEmergency: 'Report Emergency',
+                dashboard: 'Dashboard',
+                findHelp: 'Find Help',
+                reports: 'Reports',
+                map: 'Map'
+            },
+            tw: {
+                reportEmergency: 'Ka Asɛm Bɔne',
+                dashboard: 'Adwumayɛbea',
+                findHelp: 'Hwehwɛ Mmoa',
+                reports: 'Amanneɛbɔ',
+                map: 'Mmeae Nhoma'
+            },
+            ee: {
+                reportEmergency: 'Gblɔ Fukpekpe',
+                dashboard: 'Dɔwɔƒe',
+                findHelp: 'Di Kpekpeɖeƒe',
+                reports: 'Nyatakakawo',
+                map: 'Anyigbatata'
+            },
+            ha: {
+                reportEmergency: 'Bayar da Gaggawa',
+                dashboard: 'Allon Aiki',
+                findHelp: 'Nemo Taimako',
+                reports: 'Rahotanni',
+                map: 'Taswira'
+            }
+        };
+
+        // DOM elements
+        const emergencyBtn = document.getElementById('reportEmergencyTile');
+        const reportModal = document.getElementById('reportModal');
+        const successModal = document.getElementById('successModal');
+        const voiceModal = document.getElementById('voiceModal');
+        const closeModal = document.getElementById('closeModal');
+        const closeSuccess = document.getElementById('closeSuccess');
+        const cancelReport = document.getElementById('cancelReport');
+        const emergencyForm = document.getElementById('emergencyForm');
+        const useLocationBtn = document.getElementById('useLocationBtn');
+        const languageSelect = document.getElementById('languageSelect');
+        const roleSelect = document.getElementById('roleSelect');
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const hotlineBtn = document.getElementById('hotlineBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // Interface elements
+        const citizenInterface = document.getElementById('citizenInterface');
+        const responderInterface = document.getElementById('responderInterface');
+        const coordinatorInterface = document.getElementById('coordinatorInterface');
+
+        // Current state
+        let currentRole = 'citizen';
+        let isOnline = true;
+        let currentLanguage = 'en';
+        let isAuthenticated = false;
+        let authenticatedRole = null;
+        let currentUser = null;
+
+        // Authentication credentials (in production, this would be server-side)
+        const credentials = {
+            responder: {
+                'resp001': 'emergency123',
+                'resp002': 'response456',
+                'resp003': 'field789'
+            },
+            coordinator: {
+                'coord001': 'control456',
+                'coord002': 'command789',
+                'coord003': 'central123'
+            }
+        };
+
+        // Initialize app
+        function init() {
+            renderResources();
+            renderIncidentQueue();
+            renderHeatmap();
+            renderEscalationReports();
+            setupEventListeners();
+            updateConnectionStatus();
+            
+            // Simulate offline/online status changes
+            setInterval(() => {
+                isOnline = Math.random() > 0.1; // 90% online
+                updateConnectionStatus();
+            }, 30000);
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Emergency reporting
+            emergencyBtn.addEventListener('click', () => {
+                reportModal.classList.remove('hidden');
+            });
+
+            document.getElementById('reportEmergencyTile').addEventListener('click', () => {
+                reportModal.classList.remove('hidden');
+            });
+
+            closeModal.addEventListener('click', () => {
+                reportModal.classList.add('hidden');
+            });
+
+            closeSuccess.addEventListener('click', () => {
+                successModal.classList.add('hidden');
+            });
+
+            cancelReport.addEventListener('click', () => {
+                reportModal.classList.add('hidden');
+            });
+
+            emergencyForm.addEventListener('submit', handleEmergencySubmit);
+
+            // Location and media
+            useLocationBtn.addEventListener('click', () => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((position) => {
+                        document.getElementById('locationInput').value = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+                    });
+                }
+            });
+
+            document.getElementById('photoBtn').addEventListener('click', () => {
+                alert('Photo capture would open camera interface');
+            });
+
+            document.getElementById('audioBtn').addEventListener('click', () => {
+                voiceModal.classList.remove('hidden');
+            });
+
+            document.getElementById('stopVoice').addEventListener('click', () => {
+                voiceModal.classList.add('hidden');
+            });
+
+            document.getElementById('useVoice').addEventListener('click', () => {
+                voiceModal.classList.add('hidden');
+                document.getElementById('description').value = 'Voice recording: Emergency situation described via audio input';
+            });
+
+            // Language and role switching
+            languageSelect.addEventListener('change', (e) => {
+                currentLanguage = e.target.value;
+                updateLanguage(currentLanguage);
+            });
+
+            roleSelect.addEventListener('change', (e) => {
+                const selectedRole = e.target.value;
+                if (selectedRole === 'citizen') {
+                    currentRole = 'citizen';
+                    isAuthenticated = false;
+                    authenticatedRole = null;
+                    currentUser = null;
+                    switchInterface('citizen');
+                } else {
+                    // Require authentication for responder/coordinator roles
+                    if (!isAuthenticated || authenticatedRole !== selectedRole) {
+                        showLoginModal(selectedRole);
+                    } else {
+                        currentRole = selectedRole;
+                        switchInterface(selectedRole);
+                    }
+                }
+            });
+
+            // Login system
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            document.getElementById('cancelLogin').addEventListener('click', () => {
+                document.getElementById('loginModal').classList.add('hidden');
+                // Reset role selector to previous authenticated role or citizen
+                document.getElementById('roleSelect').value = authenticatedRole || 'citizen';
+            });
+
+            document.getElementById('togglePassword').addEventListener('click', togglePasswordVisibility);
+
+            // Navigation tabs
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabName = btn.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+
+            // Responder tabs
+            document.querySelectorAll('.resp-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabName = btn.dataset.tab;
+                    switchResponderTab(tabName);
+                });
+            });
+
+            // Coordinator tabs
+            document.querySelectorAll('.coord-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabName = btn.dataset.tab;
+                    switchCoordinatorTab(tabName);
+                });
+            });
+
+            // Hotline button
+            hotlineBtn.addEventListener('click', () => {
+                alert('Calling emergency hotline: 191\n\nIn a real implementation, this would initiate a phone call.');
+            });
+
+            // Quick access tiles
+            document.getElementById('findHelpTile').addEventListener('click', () => {
+                switchTab('resources');
+            });
+
+            // Resource filters
+            document.getElementById('resourceTypeFilter')?.addEventListener('change', renderResources);
+            
+            // Escalation filters
+            document.getElementById('reportStatusFilter')?.addEventListener('change', renderEscalationReports);
+            document.getElementById('reportTimeFilter')?.addEventListener('change', renderEscalationReports);
+            document.getElementById('reportRegionFilter')?.addEventListener('change', renderEscalationReports);
+            document.getElementById('reportTypeFilter')?.addEventListener('change', renderEscalationReports);
+
+            // Escalation actions
+            document.getElementById('escalateToNADMO')?.addEventListener('click', () => {
+                showNotification('Escalation request sent to NADMO. Response expected within 15 minutes.');
+            });
+            
+            document.getElementById('requestBackup')?.addEventListener('click', () => {
+                showNotification('Backup units requested. Dispatching nearest available resources.');
+            });
+            
+            document.getElementById('alertMedia')?.addEventListener('click', () => {
+                showNotification('Media alert broadcasted to registered news outlets.');
+            });
+            
+            document.getElementById('activateSOE')?.addEventListener('click', () => {
+                if (confirm('Are you sure you want to activate State of Emergency protocols? This action requires authorization.')) {
+                    showNotification('State of Emergency activation request submitted for approval.');
+                }
+            });
+
+            // Pilot features
+            document.getElementById('pilotFeedback')?.addEventListener('click', () => {
+                showPilotFeedbackModal();
+            });
+            
+            document.getElementById('pilotAnalytics')?.addEventListener('click', () => {
+                showPilotAnalytics();
+            });
+
+            // Responder actions
+            document.getElementById('refreshQueue')?.addEventListener('click', () => {
+                renderIncidentQueue();
+                showNotification('Incident queue refreshed');
+            });
+
+            document.getElementById('sendChat')?.addEventListener('click', () => {
+                const input = document.getElementById('chatInput');
+                if (input && input.value.trim()) {
+                    addChatMessage('You', input.value);
+                    input.value = '';
+                }
+            });
+
+            // Coordinator actions
+            document.getElementById('broadcastAlert')?.addEventListener('click', () => {
+                const message = document.getElementById('alertMessage')?.value;
+                if (message && message.trim()) {
+                    broadcastAlert(message);
+                }
+            });
+
+            document.getElementById('exportPDF')?.addEventListener('click', () => {
+                showNotification('PDF report exported successfully');
+            });
+
+            document.getElementById('exportCSV')?.addEventListener('click', () => {
+                showNotification('CSV data exported successfully');
+            });
+
+            // Communication tabs for responders
+            document.querySelectorAll('.comm-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const commType = tab.dataset.comm;
+                    switchCommTab(commType);
+                });
+            });
+
+            // Command communications for coordinators
+            document.getElementById('sendCommand')?.addEventListener('click', () => {
+                const target = document.getElementById('commandTarget')?.value;
+                const message = document.getElementById('commandInput')?.value;
+                if (message && message.trim()) {
+                    sendCommandMessage(target, message);
+                    document.getElementById('commandInput').value = '';
+                }
+            });
+        }
+
+        // Handle emergency form submission
+        function handleEmergencySubmit(e) {
+            e.preventDefault();
+            
+            const formData = {
+                type: document.getElementById('emergencyType').value,
+                priority: document.getElementById('priorityLevel').value,
+                location: document.getElementById('locationInput').value,
+                description: document.getElementById('description').value,
+                contact: document.getElementById('contactNumber').value
+            };
+
+            if (!formData.type || !formData.location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            // Simulate API call
+            setTimeout(() => {
+                reportModal.classList.add('hidden');
+                document.getElementById('reportId').textContent = `NK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+                successModal.classList.remove('hidden');
+                
+                // Reset form
+                emergencyForm.reset();
+                
+                // Add new alert to the list
+                addNewAlert(formData);
+            }, 1000);
+        }
+
+        // Add new alert to the list
+        function addNewAlert(formData) {
+            const newAlert = {
+                id: Date.now(),
+                type: formData.type,
+                location: formData.location,
+                region: 'accra', // Default region
+                time: 'Just now',
+                status: 'reported',
+                priority: formData.priority || 'medium',
+                description: formData.description || `${formData.type} emergency reported at ${formData.location}`,
+                verified: false
+            };
+            
+            sampleAlerts.unshift(newAlert);
+        }
+
+        // Render resources
+        function renderResources() {
+            const resourcesList = document.getElementById('resourcesList');
+            if (!resourcesList) return;
+            
+            resourcesList.innerHTML = '';
+
+            // Filter resources based on current filters
+            const typeFilter = document.getElementById('resourceTypeFilter')?.value || '';
+            const filteredResources = sampleResources.filter(resource => 
+                !typeFilter || resource.type === typeFilter
+            );
+
+            filteredResources.forEach(resource => {
+                const resourceCard = document.createElement('div');
+                resourceCard.className = 'emergency-card bg-white rounded-lg p-4 shadow-sm border';
+                
+                const typeIcons = {
+                    hospital: '🏥',
+                    fire_station: '🚒',
+                    police: '👮',
+                    medical: '🚑',
+                    disaster: '🆘',
+                    humanitarian: '❤️',
+                    maritime: '⚓',
+                    aviation: '✈️',
+                    mental_health: '🧠',
+                    support: '🤝',
+                    environmental: '🌍',
+                    health: '⚕️',
+                    utility: '⚡'
+                };
+
+                const distance = resource.distance || 'N/A';
+                const region = resource.region ? resource.region.replace('_', ' ').toUpperCase() : '';
+
+                resourceCard.innerHTML = `
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-lg">${typeIcons[resource.type] || '📍'}</span>
+                            <div>
+                                <h3 class="font-medium text-gray-800 text-sm">${resource.name}</h3>
+                                <p class="text-xs text-gray-600 mb-1">${resource.description}</p>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <span class="text-xs px-2 py-1 rounded-full ${resource.status === 'open' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${resource.status}</span>
+                                    ${resource.verified ? '<span class="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">✓ Verified</span>' : ''}
+                                    ${region ? `<span class="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full">${region}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <span class="text-sm text-gray-500">${distance}</span>
+                    </div>
+                    <div class="mt-3">
+                        <div class="text-xs text-gray-600 mb-2">
+                            <strong>Primary:</strong> ${resource.phone} 
+                            ${resource.altPhone ? `<br><strong>Alt:</strong> ${resource.altPhone}` : ''}
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="flex-1 py-2 px-3 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded-lg transition-colors" onclick="callResource('${resource.phone}')">
+                                Call Primary
+                            </button>
+                            ${resource.altPhone ? `<button class="flex-1 py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm rounded-lg transition-colors" onclick="callResource('${resource.altPhone}')">Alt</button>` : ''}
+                        </div>
+                    </div>
+                `;
+
+                resourcesList.appendChild(resourceCard);
+            });
+        }
+
+        // Call resource
+        function callResource(phone) {
+            alert(`Calling ${phone}\n\nIn a real implementation, this would initiate a phone call.`);
+        }
+
+        // Render incident queue for responders
+        function renderIncidentQueue() {
+            const incidentQueue = document.getElementById('incidentQueue');
+            if (!incidentQueue) return;
+
+            incidentQueue.innerHTML = '';
+
+            sampleIncidents.forEach(incident => {
+                const incidentCard = document.createElement('div');
+                incidentCard.className = `emergency-card bg-white rounded-lg p-4 shadow-sm border-l-4 priority-${incident.priority}`;
+
+                incidentCard.innerHTML = `
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h3 class="font-medium text-gray-800 capitalize">${incident.type} Emergency</h3>
+                            <p class="text-sm text-gray-600">${incident.location}</p>
+                            <p class="text-xs text-gray-500">${incident.time} • ${incident.assignedTo}</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded-full ${getPriorityColor(incident.priority)}">${incident.priority.toUpperCase()}</span>
+                    </div>
+                    <div class="flex items-center mb-3">
+                        <span class="status-indicator status-${incident.status}"></span>
+                        <span class="text-sm text-gray-600 capitalize">${incident.status.replace('_', ' ')}</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm rounded-lg transition-colors" onclick="updateIncidentStatus(${incident.id}, 'en-route')">
+                            En Route
+                        </button>
+                        <button class="flex-1 py-2 px-3 bg-green-50 hover:bg-green-100 text-green-600 text-sm rounded-lg transition-colors" onclick="updateIncidentStatus(${incident.id}, 'resolved')">
+                            Resolved
+                        </button>
+                        <button class="flex-1 py-2 px-3 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded-lg transition-colors" onclick="updateIncidentStatus(${incident.id}, 'escalated')">
+                            Escalate
+                        </button>
+                    </div>
+                `;
+
+                incidentQueue.appendChild(incidentCard);
+            });
+        }
+
+        // Update incident status
+        function updateIncidentStatus(incidentId, newStatus) {
+            const incident = sampleIncidents.find(i => i.id === incidentId);
+            if (incident) {
+                incident.status = newStatus;
+                renderIncidentQueue();
+                showNotification(`Incident status updated to: ${newStatus.replace('_', ' ')}`);
+            }
+        }
+
+        // Get priority color class
+        function getPriorityColor(priority) {
+            const colors = {
+                high: 'bg-red-100 text-red-800',
+                medium: 'bg-yellow-100 text-yellow-800',
+                low: 'bg-green-100 text-green-800'
+            };
+            return colors[priority] || colors.medium;
+        }
+
+        // Add chat message
+        function addChatMessage(sender, message) {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'mb-2';
+            messageDiv.innerHTML = `
+                <span class="font-medium text-blue-600">${sender}:</span>
+                <span class="text-gray-700">${message}</span>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Render heatmap for coordinators
+        function renderHeatmap() {
+            const heatmapContainer = document.querySelector('.grid.grid-cols-8');
+            if (!heatmapContainer) return;
+
+            heatmapContainer.innerHTML = '';
+
+            // Generate 64 cells (8x8 grid)
+            for (let i = 0; i < 64; i++) {
+                const cell = document.createElement('div');
+                const intensity = Math.random();
+                const color = intensity > 0.7 ? 'bg-red-500' : 
+                             intensity > 0.4 ? 'bg-yellow-500' : 
+                             intensity > 0.2 ? 'bg-green-500' : 'bg-gray-200';
+                
+                cell.className = `heatmap-cell w-6 h-6 ${color} rounded-sm cursor-pointer`;
+                cell.title = `Activity level: ${Math.round(intensity * 100)}%`;
+                
+                heatmapContainer.appendChild(cell);
+            }
+        }
+
+        // Broadcast alert
+        function broadcastAlert(message) {
+            const sms = document.getElementById('smsChannel')?.checked;
+            const whatsapp = document.getElementById('whatsappChannel')?.checked;
+            const ussd = document.getElementById('ussdChannel')?.checked;
+
+            const channels = [];
+            if (sms) channels.push('SMS');
+            if (whatsapp) channels.push('WhatsApp');
+            if (ussd) channels.push('USSD');
+
+            showNotification(`Alert broadcasted via: ${channels.join(', ')}`);
+            const alertMessageEl = document.getElementById('alertMessage');
+            if (alertMessageEl) alertMessageEl.value = '';
+        }
+
+        // Authentication functions
+        function showLoginModal(role) {
+            document.getElementById('loginRoleText').textContent = role;
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('loginError').classList.add('hidden');
+            document.getElementById('loginForm').reset();
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            
+            const userId = document.getElementById('loginUserId').value;
+            const password = document.getElementById('loginPassword').value;
+            const targetRole = document.getElementById('loginRoleText').textContent;
+
+            // Validate credentials
+            if (credentials[targetRole] && credentials[targetRole][userId] === password) {
+                // Successful login
+                isAuthenticated = true;
+                authenticatedRole = targetRole;
+                currentUser = userId;
+                currentRole = targetRole;
+                
+                document.getElementById('loginModal').classList.add('hidden');
+                switchInterface(targetRole);
+                showNotification(`Welcome, ${userId}! Logged into ${targetRole} platform.`);
+                
+                // Update role selector
+                document.getElementById('roleSelect').value = targetRole;
+            } else {
+                // Failed login
+                document.getElementById('loginError').classList.remove('hidden');
+                document.getElementById('loginPassword').value = '';
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('loginPassword');
+            const toggleBtn = document.getElementById('togglePassword');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"></path>
+                    </svg>
+                `;
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                `;
+            }
+        }
+
+        // Switch interface based on role
+        function switchInterface(role) {
+            // Hide all interfaces
+            citizenInterface.classList.add('hidden');
+            responderInterface.classList.add('hidden');
+            coordinatorInterface.classList.add('hidden');
+
+            // Show selected interface
+            switch (role) {
+                case 'citizen':
+                    citizenInterface.classList.remove('hidden');
+                    break;
+                case 'responder':
+                    if (isAuthenticated && authenticatedRole === 'responder') {
+                        responderInterface.classList.remove('hidden');
+                    } else {
+                        showLoginModal('responder');
+                        return;
+                    }
+                    break;
+                case 'coordinator':
+                    if (isAuthenticated && authenticatedRole === 'coordinator') {
+                        coordinatorInterface.classList.remove('hidden');
+                    } else {
+                        showLoginModal('coordinator');
+                        return;
+                    }
+                    break;
+            }
+        }
+
+        // Switch tabs for citizens
+        function switchTab(tabName) {
+            // Update tab buttons
+            tabBtns.forEach(btn => {
+                if (btn.dataset.tab === tabName) {
+                    btn.className = 'tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm';
+                } else {
+                    btn.className = 'tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm';
+                }
+            });
+
+            // Update tab content
+            tabContents.forEach(content => {
+                if (content.id === `${tabName}Tab`) {
+                    content.classList.remove('hidden');
+                    content.classList.add('fade-in');
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+
+            // Show/hide escalation actions based on role
+            const escalationActions = document.getElementById('escalationActions');
+            if (escalationActions && tabName === 'reports') {
+                if (currentRole === 'responder' || currentRole === 'coordinator') {
+                    escalationActions.classList.remove('hidden');
+                } else {
+                    escalationActions.classList.add('hidden');
+                }
+            }
+        }
+
+        // Switch tabs for responders
+        function switchResponderTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.resp-tab-btn').forEach(btn => {
+                if (btn.dataset.tab === tabName) {
+                    btn.className = 'resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm';
+                } else {
+                    btn.className = 'resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm';
+                }
+            });
+
+            // Update tab content
+            document.querySelectorAll('.resp-tab-content').forEach(content => {
+                if (content.id === `${tabName}Tab` || content.id === `resp${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`) {
+                    content.classList.remove('hidden');
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+
+            // Render reports if switching to reports tab
+            if (tabName === 'reports') {
+                renderEscalationReports('responderReportsList');
+            }
+        }
+
+        // Switch tabs for coordinators
+        function switchCoordinatorTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.coord-tab-btn').forEach(btn => {
+                if (btn.dataset.tab === tabName) {
+                    btn.className = 'coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm';
+                } else {
+                    btn.className = 'coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm';
+                }
+            });
+
+            // Update tab content
+            document.querySelectorAll('.coord-tab-content').forEach(content => {
+                if (content.id === `${tabName}Tab` || content.id === `coord${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`) {
+                    content.classList.remove('hidden');
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+
+            // Render reports if switching to reports tab
+            if (tabName === 'reports') {
+                renderEscalationReports('coordinatorReportsList');
+            }
+        }
+
+        // Update language
+        function updateLanguage(lang) {
+            const t = translations[lang] || translations.en;
+            
+            // Update main tiles
+            const reportTile = document.getElementById('reportEmergencyTile');
+            const findHelpTile = document.getElementById('findHelpTile');
+            
+            if (reportTile) {
+                const titleEl = reportTile.querySelector('h3');
+                if (titleEl) titleEl.textContent = t.reportEmergency;
+            }
+            if (findHelpTile) {
+                const titleEl = findHelpTile.querySelector('h3');
+                if (titleEl) titleEl.textContent = t.findHelp;
+            }
+            
+            // Update tab labels
+            tabBtns.forEach(btn => {
+                const tabName = btn.dataset.tab;
+                if (t[tabName]) {
+                    btn.textContent = t[tabName];
+                }
+            });
+        }
+
+        // Update connection status
+        function updateConnectionStatus() {
+            if (isOnline) {
+                connectionStatus.className = 'w-3 h-3 rounded-full online-indicator';
+                connectionStatus.title = 'Online';
+            } else {
+                connectionStatus.className = 'w-3 h-3 rounded-full offline-indicator';
+                connectionStatus.title = 'Offline - Using cached data';
+            }
+        }
+
+        // Communication functions
+        function switchCommTab(commType) {
+            // Update tab buttons
+            document.querySelectorAll('.comm-tab').forEach(tab => {
+                if (tab.dataset.comm === commType) {
+                    tab.className = 'comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md bg-white text-gray-900 shadow-sm';
+                } else {
+                    tab.className = 'comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md text-gray-600 hover:text-gray-900';
+                }
+            });
+
+            // Update content
+            document.querySelectorAll('.comm-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            const targetContent = document.getElementById(`${commType}Chat`);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
+        }
+
+        function sendCommandMessage(target, message) {
+            const commandMessages = document.getElementById('commandMessages');
+            if (!commandMessages) return;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'mb-2';
+            messageDiv.innerHTML = `
+                <span class="font-medium text-blue-600">You → ${target}:</span>
+                <span class="text-gray-700">${message}</span>
+                <span class="text-xs text-gray-500 block">Just now</span>
+            `;
+            
+            commandMessages.appendChild(messageDiv);
+            commandMessages.scrollTop = commandMessages.scrollHeight;
+            
+            showNotification(`Command sent to ${target}: ${message}`);
+        }
+
+        // Render escalation reports
+        function renderEscalationReports(containerId = 'escalationReportsList') {
+            const reportsList = document.getElementById(containerId);
+            if (!reportsList) return;
+
+            reportsList.innerHTML = '';
+
+            // Apply filters
+            const statusFilter = document.getElementById('reportStatusFilter')?.value || '';
+            const timeFilter = document.getElementById('reportTimeFilter')?.value || '';
+            const regionFilter = document.getElementById('reportRegionFilter')?.value || '';
+            const typeFilter = document.getElementById('reportTypeFilter')?.value || '';
+
+            const filteredReports = escalationReports.filter(report => {
+                return (!statusFilter || report.status === statusFilter) &&
+                       (!regionFilter || report.region === regionFilter) &&
+                       (!typeFilter || report.type === typeFilter);
+            });
+
+            filteredReports.forEach(report => {
+                const reportCard = document.createElement('div');
+                reportCard.className = 'p-4 hover:bg-gray-50 cursor-pointer';
+
+                const statusColors = {
+                    escalated: 'bg-red-100 text-red-800',
+                    investigating: 'bg-yellow-100 text-yellow-800',
+                    resolved: 'bg-green-100 text-green-800'
+                };
+
+                const priorityColors = {
+                    critical: 'bg-red-500',
+                    high: 'bg-orange-500',
+                    medium: 'bg-yellow-500',
+                    low: 'bg-green-500'
+                };
+
+                reportCard.innerHTML = `
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <div class="w-3 h-3 ${priorityColors[report.priority]} rounded-full"></div>
+                                <h4 class="font-medium text-gray-800 text-sm">${report.title}</h4>
+                                <span class="text-xs px-2 py-1 rounded-full ${statusColors[report.status]}">${report.status.toUpperCase()}</span>
+                            </div>
+                            <p class="text-xs text-gray-600 mb-1">${report.description}</p>
+                            <div class="flex items-center space-x-4 text-xs text-gray-500">
+                                <span>ID: ${report.id}</span>
+                                <span>${report.time}</span>
+                                <span>Escalated to: ${report.escalatedTo}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                reportsList.appendChild(reportCard);
+            });
+        }
+
+        // Utility functions
+        function showNotification(message) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 slide-in';
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function showPilotFeedbackModal() {
+            alert('Pilot Feedback Collection:\n\n• User experience surveys\n• Performance metrics\n• Feature usage analytics\n• Bug reports and suggestions\n\nData is being collected to improve the platform before full deployment.');
+        }
+
+        function showPilotAnalytics() {
+            alert('Pilot Analytics Dashboard:\n\n• 1,247 active users across 3 regions\n• 89% user satisfaction rate\n• Average response time: 4.2 minutes\n• 156 successful emergency responses\n• 23 feature improvement suggestions\n\nDetailed analytics available in coordinator console.');
+        }
+
+        // Initialize the application
+        init();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97ef7fd9c5bdcd5f',t:'MTc1Nzg0ODg3Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
