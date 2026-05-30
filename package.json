@@ -1,0 +1,21 @@
+{
+  "name": "nkwa-link",
+  "version": "1.0.0",
+  "description": "[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Status: Pilot Phase](https://img.shields.io/badge/Status-Pilot%20Phase-blue.svg)](#pilot-phase) [![Platform: Web](https://img.shields.io/badge/Platform-Web-green.svg)](#features)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Samuel-cell-debug/Nkwa-Link.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Samuel-cell-debug/Nkwa-Link/issues"
+  },
+  "homepage": "https://github.com/Samuel-cell-debug/Nkwa-Link#readme"
+}
