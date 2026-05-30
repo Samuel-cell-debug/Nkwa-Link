@@ -18,6 +18,7 @@ A comprehensive emergency response platform designed for Ghana, enabling citizen
 - **Multi-language Support**: Available in English, Twi, Ewe, and Hausa
 - **Offline Capability**: Works with cached data when internet connection is limited
 - **Voice Input**: Audio recording for emergency descriptions
+- **Image/Video Evidence**: Capture photos and videos directly from device camera
 - **Emergency Hotline**: One-touch access to Ghana's emergency numbers (191, 192, 193)
 
 ### For Emergency Responders

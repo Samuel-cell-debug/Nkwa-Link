@@ -877,6 +877,107 @@
         </div>
     </div>
 
+    <!-- Photo/Video Media Capture Modal -->
+    <div id="mediaModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full p-6 slide-in">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2" id="mediaModalTitle">Capture Photo or Video</h3>
+            <p class="text-gray-600 mb-4 text-sm" id="mediaModalDescription">Choose how to capture evidence</p>
+            
+            <!-- Media Type Selection -->
+            <div id="mediaTypeSelection" class="mb-4">
+                <div class="flex space-x-2 mb-4">
+                    <button id="mediaPhotoTab" class="flex-1 py-2 px-3 bg-red-600 text-white rounded-lg font-medium transition-colors">
+                        📷 Photo
+                    </button>
+                    <button id="mediaVideoTab" class="flex-1 py-2 px-3 bg-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-400 transition-colors">
+                        🎥 Video
+                    </button>
+                </div>
+            </div>
+
+            <!-- Photo Capture Section -->
+            <div id="photoSection">
+                <!-- Video preview for camera -->
+                <div id="cameraPreview" class="w-full h-64 bg-black rounded-lg mb-4 overflow-hidden hidden">
+                    <video id="cameraStream" class="w-full h-full object-cover"></video>
+                </div>
+
+                <!-- Photo preview -->
+                <div id="photoPreview" class="w-full h-64 bg-gray-100 rounded-lg mb-4 overflow-hidden hidden">
+                    <img id="capturedPhoto" class="w-full h-full object-cover" alt="Captured photo">
+                </div>
+
+                <!-- Photo controls -->
+                <div id="photoControls" class="flex space-x-2 mb-3">
+                    <button id="startCameraBtn" class="flex-1 py-2 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors">
+                        📷 Start Camera
+                    </button>
+                    <button id="takeShotBtn" class="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors hidden">
+                        📸 Take Shot
+                    </button>
+                    <button id="stopCameraBtn" class="flex-1 py-2 px-3 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-medium text-sm transition-colors hidden">
+                        ⏹ Stop
+                    </button>
+                </div>
+
+                <!-- File upload option -->
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-2">Or Upload Existing Photo</label>
+                    <input type="file" id="photoUploadInput" accept="image/*" class="w-full text-xs">
+                </div>
+            </div>
+
+            <!-- Video Capture Section -->
+            <div id="videoSection" class="hidden">
+                <!-- Video preview for recording -->
+                <div id="videoRecordingPreview" class="w-full h-64 bg-black rounded-lg mb-4 overflow-hidden hidden">
+                    <video id="videoRecordingStream" class="w-full h-full object-cover"></video>
+                </div>
+
+                <!-- Video playback -->
+                <div id="videoPlaybackContainer" class="w-full mb-4 hidden">
+                    <video id="recordedVideoPlayback" class="w-full h-64 rounded-lg bg-gray-100 object-cover" controls></video>
+                </div>
+
+                <!-- Video recording timer -->
+                <div id="videoRecordingTimer" class="text-center text-red-600 font-semibold mb-3 hidden">
+                    Recording: <span id="videoRecordingTime">0:00</span> / Max: 2:00
+                </div>
+
+                <!-- Video controls -->
+                <div id="videoControls" class="flex space-x-2 mb-3">
+                    <button id="startVideoBtn" class="flex-1 py-2 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors">
+                        📹 Start Recording
+                    </button>
+                    <button id="stopVideoBtn" class="flex-1 py-2 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition-colors hidden">
+                        ⏹ Stop
+                    </button>
+                </div>
+
+                <!-- File upload option -->
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-2">Or Upload Existing Video</label>
+                    <input type="file" id="videoUploadInput" accept="video/*" class="w-full text-xs">
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div id="mediaError" class="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm hidden">
+                <span id="mediaErrorMessage"></span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex space-x-3">
+                <button id="useMediaBtn" class="flex-1 py-2 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition-colors hidden">
+                    ✓ Use Media
+                </button>
+                <button id="closeMediaModal" class="flex-1 py-2 px-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Sample data
         const sampleAlerts = [
@@ -1284,6 +1385,7 @@
         const reportModal = document.getElementById('reportModal');
         const successModal = document.getElementById('successModal');
         const voiceModal = document.getElementById('voiceModal');
+        const mediaModal = document.getElementById('mediaModal');
         const closeModal = document.getElementById('closeModal');
         const closeSuccess = document.getElementById('closeSuccess');
         const cancelReport = document.getElementById('cancelReport');
@@ -1316,6 +1418,18 @@
         let recordingTimer = null;
         let audioBlob = null;
         let isRecording = false;
+
+        // Media Capture state (Photo/Video)
+        let cameraStream = null;
+        let videoStream = null;
+        let videoMediaRecorder = null;
+        let videoChunks = [];
+        let videoRecordingStartTime = null;
+        let videoRecordingTimer = null;
+        let capturedPhotoBlob = null;
+        let recordedVideoBlob = null;
+        let isVideoRecording = false;
+        let currentMediaType = 'photo'; // 'photo' or 'video'
 
         // Authentication credentials (in production, this would be server-side)
         const credentials = {
@@ -1462,6 +1576,228 @@
             document.getElementById('voiceError').classList.add('hidden');
         }
 
+        // Media Capture Functions (Photo/Video)
+        async function startCamera() {
+            try {
+                if (cameraStream) {
+                    cameraStream.getTracks().forEach(track => track.stop());
+                }
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' }
+                });
+                const videoElement = document.getElementById('cameraStream');
+                videoElement.srcObject = cameraStream;
+                document.getElementById('cameraPreview').classList.remove('hidden');
+                document.getElementById('photoPreview').classList.add('hidden');
+                document.getElementById('startCameraBtn').classList.add('hidden');
+                document.getElementById('takeShotBtn').classList.remove('hidden');
+                document.getElementById('stopCameraBtn').classList.remove('hidden');
+                document.getElementById('mediaError').classList.add('hidden');
+                showNotification('📷 Camera started');
+            } catch (error) {
+                handleMediaError(error);
+            }
+        }
+
+        function takeScreenshot() {
+            try {
+                const videoElement = document.getElementById('cameraStream');
+                const canvas = document.createElement('canvas');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoElement, 0, 0);
+                canvas.toBlob((blob) => {
+                    capturedPhotoBlob = blob;
+                    const photoUrl = URL.createObjectURL(blob);
+                    document.getElementById('capturedPhoto').src = photoUrl;
+                    document.getElementById('photoPreview').classList.remove('hidden');
+                    document.getElementById('useMediaBtn').classList.remove('hidden');
+                    showNotification('📸 Photo captured');
+                }, 'image/jpeg', 0.9);
+            } catch (error) {
+                console.error('Screenshot error:', error);
+                showNotification('❌ Failed to capture photo');
+            }
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            document.getElementById('cameraPreview').classList.add('hidden');
+            document.getElementById('startCameraBtn').classList.remove('hidden');
+            document.getElementById('takeShotBtn').classList.add('hidden');
+            document.getElementById('stopCameraBtn').classList.add('hidden');
+            showNotification('📷 Camera stopped');
+        }
+
+        async function startVideoRecording() {
+            try {
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                }
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' },
+                    audio: true
+                });
+                const videoElement = document.getElementById('videoRecordingStream');
+                videoElement.srcObject = videoStream;
+                videoMediaRecorder = new MediaRecorder(videoStream);
+                videoChunks = [];
+                videoMediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        videoChunks.push(event.data);
+                    }
+                };
+                videoMediaRecorder.onstop = () => {
+                    recordedVideoBlob = new Blob(videoChunks, { type: 'video/webm' });
+                    const videoUrl = URL.createObjectURL(recordedVideoBlob);
+                    const videoPlayback = document.getElementById('recordedVideoPlayback');
+                    videoPlayback.src = videoUrl;
+                    document.getElementById('videoPlaybackContainer').classList.remove('hidden');
+                    document.getElementById('videoRecordingPreview').classList.add('hidden');
+                    document.getElementById('useMediaBtn').classList.remove('hidden');
+                    if (videoRecordingTimer) clearInterval(videoRecordingTimer);
+                };
+                videoMediaRecorder.start();
+                isVideoRecording = true;
+                videoRecordingStartTime = Date.now();
+                document.getElementById('videoRecordingPreview').classList.remove('hidden');
+                document.getElementById('videoRecordingTimer').classList.remove('hidden');
+                document.getElementById('startVideoBtn').classList.add('hidden');
+                document.getElementById('stopVideoBtn').classList.remove('hidden');
+                document.getElementById('mediaError').classList.add('hidden');
+                videoRecordingTimer = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - videoRecordingStartTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    document.getElementById('videoRecordingTime').textContent = 
+                        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    if (elapsed >= 120) {
+                        stopVideoRecording();
+                    }
+                }, 100);
+                showNotification('🎥 Video recording started');
+            } catch (error) {
+                handleMediaError(error);
+            }
+        }
+
+        function stopVideoRecording() {
+            if (videoMediaRecorder && isVideoRecording) {
+                videoMediaRecorder.stop();
+                isVideoRecording = false;
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                document.getElementById('stopVideoBtn').classList.add('hidden');
+                document.getElementById('startVideoBtn').classList.remove('hidden');
+                document.getElementById('videoRecordingTimer').classList.add('hidden');
+                if (videoRecordingTimer) clearInterval(videoRecordingTimer);
+                showNotification('🎥 Video recording stopped');
+            }
+        }
+
+        function useMediaCapture() {
+            const descriptionField = document.getElementById('description');
+            if (currentMediaType === 'photo' && capturedPhotoBlob) {
+                descriptionField.value = `[PHOTO ATTACHED] Emergency situation captured visually. Photo data captured and transmitted with this report.`;
+                window.emergencyPhotoBlob = capturedPhotoBlob;
+                window.emergencyMediaType = 'photo';
+            } else if (currentMediaType === 'video' && recordedVideoBlob) {
+                const videoDuration = document.getElementById('videoRecordingTime').textContent || '0:00';
+                descriptionField.value = `[VIDEO ATTACHED - ${videoDuration}] Emergency situation captured on video. Video data captured and transmitted with this report.`;
+                window.emergencyVideoBlob = recordedVideoBlob;
+                window.emergencyVideoDuration = videoDuration;
+                window.emergencyMediaType = 'video';
+            }
+            document.getElementById('mediaModal').classList.add('hidden');
+            resetMediaCapture();
+            showNotification('✓ Media attached to emergency report');
+        }
+
+        function resetMediaCapture() {
+            capturedPhotoBlob = null;
+            document.getElementById('cameraPreview').classList.add('hidden');
+            document.getElementById('photoPreview').classList.add('hidden');
+            document.getElementById('startCameraBtn').classList.remove('hidden');
+            document.getElementById('takeShotBtn').classList.add('hidden');
+            document.getElementById('stopCameraBtn').classList.add('hidden');
+            recordedVideoBlob = null;
+            window.emergencyVideoDuration = null;
+            isVideoRecording = false;
+            if (videoRecordingTimer) clearInterval(videoRecordingTimer);
+            document.getElementById('videoRecordingPreview').classList.add('hidden');
+            document.getElementById('videoPlaybackContainer').classList.add('hidden');
+            document.getElementById('videoRecordingTimer').classList.add('hidden');
+            document.getElementById('videoRecordingTime').textContent = '0:00';
+            document.getElementById('startVideoBtn').classList.remove('hidden');
+            document.getElementById('stopVideoBtn').classList.add('hidden');
+            document.getElementById('useMediaBtn').classList.add('hidden');
+            document.getElementById('mediaError').classList.add('hidden');
+            document.getElementById('photoUploadInput').value = '';
+            document.getElementById('videoUploadInput').value = '';
+        }
+
+        function clearEmergencyMediaAttachments() {
+            window.emergencyAudioBlob = null;
+            window.emergencyAudioDuration = null;
+            window.emergencyPhotoBlob = null;
+            window.emergencyVideoBlob = null;
+            window.emergencyVideoDuration = null;
+            window.emergencyMediaType = null;
+        }
+
+        function handlePhotoUpload(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    canvas.toBlob((blob) => {
+                        capturedPhotoBlob = blob;
+                        document.getElementById('capturedPhoto').src = e.target.result;
+                        document.getElementById('photoPreview').classList.remove('hidden');
+                        document.getElementById('useMediaBtn').classList.remove('hidden');
+                        showNotification('📷 Photo loaded successfully');
+                    }, 'image/jpeg', 0.9);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleVideoUpload(file) {
+            const videoUrl = URL.createObjectURL(file);
+            recordedVideoBlob = file;
+            const videoPlayback = document.getElementById('recordedVideoPlayback');
+            videoPlayback.src = videoUrl;
+            document.getElementById('videoPlaybackContainer').classList.remove('hidden');
+            document.getElementById('useMediaBtn').classList.remove('hidden');
+            showNotification('🎥 Video loaded successfully');
+        }
+
+        function handleMediaError(error) {
+            const errorElement = document.getElementById('mediaError');
+            const errorMessage = document.getElementById('mediaErrorMessage');
+            if (error.name === 'NotAllowedError') {
+                errorMessage.textContent = 'Camera access denied. Please allow camera access in your browser settings.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage.textContent = 'No camera found. Please connect a camera and try again.';
+            } else if (error.name === 'SecurityError') {
+                errorMessage.textContent = 'HTTPS required for camera access. Please use a secure connection.';
+            } else {
+                errorMessage.textContent = `Error accessing camera: ${error.message}`;
+            }
+            errorElement.classList.remove('hidden');
+            console.error('Media access error:', error);
+        }
+
         // Initialize app
         function init() {
             renderResources();
@@ -1513,7 +1849,96 @@
             });
 
             document.getElementById('photoBtn').addEventListener('click', () => {
-                alert('Photo capture would open camera interface');
+                resetMediaCapture();
+                currentMediaType = 'photo';
+                document.getElementById('mediaPhotoTab').classList.add('bg-red-600', 'text-white');
+                document.getElementById('mediaPhotoTab').classList.remove('bg-gray-300', 'text-gray-700');
+                document.getElementById('mediaVideoTab').classList.remove('bg-red-600', 'text-white');
+                document.getElementById('mediaVideoTab').classList.add('bg-gray-300', 'text-gray-700');
+                document.getElementById('photoSection').classList.remove('hidden');
+                document.getElementById('videoSection').classList.add('hidden');
+                document.getElementById('mediaModal').classList.remove('hidden');
+            });
+
+            // Media Modal Controls
+            document.getElementById('mediaPhotoTab').addEventListener('click', () => {
+                stopVideoRecording();
+                stopCamera();
+                currentMediaType = 'photo';
+                document.getElementById('mediaPhotoTab').classList.add('bg-red-600', 'text-white');
+                document.getElementById('mediaPhotoTab').classList.remove('bg-gray-300', 'text-gray-700');
+                document.getElementById('mediaVideoTab').classList.remove('bg-red-600', 'text-white');
+                document.getElementById('mediaVideoTab').classList.add('bg-gray-300', 'text-gray-700');
+                document.getElementById('photoSection').classList.remove('hidden');
+                document.getElementById('videoSection').classList.add('hidden');
+            });
+
+            document.getElementById('mediaVideoTab').addEventListener('click', () => {
+                stopCamera();
+                currentMediaType = 'video';
+                document.getElementById('mediaVideoTab').classList.add('bg-red-600', 'text-white');
+                document.getElementById('mediaVideoTab').classList.remove('bg-gray-300', 'text-gray-700');
+                document.getElementById('mediaPhotoTab').classList.remove('bg-red-600', 'text-white');
+                document.getElementById('mediaPhotoTab').classList.add('bg-gray-300', 'text-gray-700');
+                document.getElementById('videoSection').classList.remove('hidden');
+                document.getElementById('photoSection').classList.add('hidden');
+            });
+
+            // Photo Capture Controls
+            document.getElementById('startCameraBtn').addEventListener('click', () => {
+                startCamera();
+            });
+
+            document.getElementById('takeShotBtn').addEventListener('click', () => {
+                takeScreenshot();
+            });
+
+            document.getElementById('stopCameraBtn').addEventListener('click', () => {
+                stopCamera();
+            });
+
+            // Video Recording Controls
+            document.getElementById('startVideoBtn').addEventListener('click', () => {
+                startVideoRecording();
+            });
+
+            document.getElementById('stopVideoBtn').addEventListener('click', () => {
+                stopVideoRecording();
+            });
+
+            // Media Upload Handlers
+            document.getElementById('photoUploadInput').addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    handlePhotoUpload(e.target.files[0]);
+                }
+            });
+
+            document.getElementById('videoUploadInput').addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    handleVideoUpload(e.target.files[0]);
+                }
+            });
+
+            // Media Modal Actions
+            document.getElementById('useMediaBtn').addEventListener('click', () => {
+                useMediaCapture();
+            });
+
+            document.getElementById('closeMediaModal').addEventListener('click', () => {
+                stopCamera();
+                stopVideoRecording();
+                document.getElementById('mediaModal').classList.add('hidden');
+                resetMediaCapture();
+            });
+
+            // Close media modal when clicking outside
+            document.getElementById('mediaModal').addEventListener('click', (e) => {
+                if (e.target.id === 'mediaModal') {
+                    stopCamera();
+                    stopVideoRecording();
+                    document.getElementById('mediaModal').classList.add('hidden');
+                    resetMediaCapture();
+                }
             });
 
             document.getElementById('audioBtn').addEventListener('click', () => {
@@ -1694,34 +2119,80 @@
         }
 
         // Handle emergency form submission
-        function handleEmergencySubmit(e) {
+        async function handleEmergencySubmit(e) {
             e.preventDefault();
             
-            const formData = {
-                type: document.getElementById('emergencyType').value,
-                priority: document.getElementById('priorityLevel').value,
-                location: document.getElementById('locationInput').value,
-                description: document.getElementById('description').value,
-                contact: document.getElementById('contactNumber').value
-            };
+            const emergencyType = document.getElementById('emergencyType').value;
+            const priority = document.getElementById('priorityLevel').value;
+            const location = document.getElementById('locationInput').value;
+            const description = document.getElementById('description').value;
+            const contact = document.getElementById('contactNumber').value;
 
-            if (!formData.type || !formData.location) {
+            if (!emergencyType || !location) {
                 alert('Please fill in all required fields');
                 return;
             }
 
-            // Simulate API call
-            setTimeout(() => {
-                reportModal.classList.add('hidden');
-                document.getElementById('reportId').textContent = `NK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-                successModal.classList.remove('hidden');
-                
-                // Reset form
-                emergencyForm.reset();
-                
-                // Add new alert to the list
-                addNewAlert(formData);
-            }, 1000);
+            const payload = new FormData();
+            payload.append('type', emergencyType);
+            payload.append('priority', priority);
+            payload.append('location', location);
+            payload.append('description', description);
+            payload.append('contact', contact);
+
+            if (window.emergencyAudioBlob) {
+                payload.append('audio', window.emergencyAudioBlob, 'emergency_audio.wav');
+                if (window.emergencyAudioDuration) {
+                    payload.append('audioDuration', window.emergencyAudioDuration);
+                }
+            }
+
+            if (window.emergencyPhotoBlob) {
+                payload.append('media', window.emergencyPhotoBlob, 'emergency_photo.jpg');
+                payload.append('mediaType', 'photo');
+            }
+
+            if (window.emergencyVideoBlob) {
+                payload.append('media', window.emergencyVideoBlob, 'emergency_video.webm');
+                payload.append('mediaType', 'video');
+                if (window.emergencyVideoDuration) {
+                    payload.append('mediaDuration', window.emergencyVideoDuration);
+                }
+            }
+
+            const reportIdValue = `NK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+
+            let submittedToServer = false;
+            try {
+                const response = await fetch('/api/emergency-report', {
+                    method: 'POST',
+                    body: payload
+                });
+                submittedToServer = response.ok;
+            } catch (error) {
+                console.warn('Emergency report upload failed:', error);
+            }
+
+            reportModal.classList.add('hidden');
+            document.getElementById('reportId').textContent = reportIdValue;
+            successModal.classList.remove('hidden');
+
+            if (submittedToServer) {
+                showNotification('Emergency report submitted successfully with media.');
+            } else {
+                showNotification('Emergency report saved locally. Server upload is unavailable.');
+            }
+
+            emergencyForm.reset();
+            clearEmergencyMediaAttachments();
+
+            addNewAlert({
+                type: emergencyType,
+                priority,
+                location,
+                description,
+                contact
+            });
         }
 
         // Add new alert to the list
