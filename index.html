@@ -204,517 +204,318 @@
     </div>
 
     <!-- Main Content Container -->
-    <main class="max-w-md mx-auto pb-20">
+    <main class="max-w-6xl mx-auto px-4 pb-20">
         <!-- Citizen Interface -->
         <div id="citizenInterface" class="interface-content">
-            <!-- Navigation Tabs -->
-            <div class="bg-white border-b">
-                <div class="flex">
-                    <button class="tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm" data-tab="dashboard">
-                        Dashboard
-                    </button>
-                    <button class="tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="resources">
-                        Find Help
-                    </button>
-                </div>
-            </div>
-
-            <!-- Citizen Dashboard Tab -->
-            <div id="dashboardTab" class="tab-content">
-                <div class="p-4 space-y-6">
-                    <!-- Emergency Action Cards -->
-                    <div class="space-y-4">
-                        <button id="reportEmergencyTile" class="w-full bg-red-500 hover:bg-red-600 text-white p-6 rounded-xl shadow-lg emergency-pulse flex items-center space-x-4 transition-all">
-                            <div class="w-16 h-16 bg-red-400 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                                </svg>
+            <div class="space-y-6">
+                <div class="grid gap-4 lg:grid-cols-[2fr_1fr] items-start">
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-red-600">Citizen</p>
+                                <h2 class="text-2xl font-semibold text-gray-900">Report Incident Quickly</h2>
                             </div>
-                            <div class="text-left">
-                                <h3 class="text-xl font-bold">Report Emergency</h3>
-                                <p class="text-red-100">Get immediate help for urgent situations</p>
-                            </div>
-                        </button>
-                        
-                        <button id="findHelpTile" class="w-full bg-blue-500 hover:bg-blue-600 text-white p-6 rounded-xl shadow-lg flex items-center space-x-4 transition-all">
-                            <div class="w-16 h-16 bg-blue-400 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
-                                </svg>
-                            </div>
-                            <div class="text-left">
-                                <h3 class="text-xl font-bold">Find Help Centers</h3>
-                                <p class="text-blue-100">Locate nearby hospitals, police & fire stations</p>
-                            </div>
-                        </button>
-                    </div>
-
-                    <!-- Safety Tip of the Day -->
-                    <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200 shadow-sm">
-                        <div class="flex items-start space-x-3">
-                            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span class="text-2xl">💡</span>
+                            <button id="emergencyDispatchBtn" type="button" class="inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-white text-sm font-semibold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+                                🚨 Emergency Dispatch
+                            </button>
+                        </div>
+                        <form id="citizenQuickReportForm" class="space-y-4">
+                            <div>
+                                <label for="citizenType" class="block text-sm font-medium text-gray-700">Incident Type</label>
+                                <select id="citizenType" class="mt-2 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-100" required>
+                                    <option value="">Select type</option>
+                                    <option value="fire">Fire</option>
+                                    <option value="flood">Flood</option>
+                                    <option value="medical">Medical Emergency</option>
+                                    <option value="accident">Accident</option>
+                                    <option value="crime">Crime / Security</option>
+                                    <option value="other">Other</option>
+                                </select>
                             </div>
                             <div>
-                                <h3 class="text-lg font-bold text-green-800 mb-2">Safety Tip of the Day</h3>
-                                <p class="text-green-700 leading-relaxed">Always keep emergency contacts saved in your phone. In Ghana, remember: Police (191), Fire (192), Ambulance (193). Program these numbers now and share them with your family.</p>
+                                <label for="citizenLocation" class="block text-sm font-medium text-gray-700">Location</label>
+                                <input id="citizenLocation" type="text" placeholder="Enter location or landmark" class="mt-2 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-100" required>
                             </div>
+                            <div>
+                                <label for="citizenDescription" class="block text-sm font-medium text-gray-700">Description</label>
+                                <textarea id="citizenDescription" rows="4" placeholder="Describe what is happening" class="mt-2 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-100"></textarea>
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <button type="submit" class="w-full rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">Submit Report</button>
+                                <button id="citizenOpenReportModal" type="button" class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-100">Add Photo / Voice</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-200">
+                            <p class="text-sm font-semibold text-gray-600 uppercase tracking-[0.2em]">Quick Actions</p>
+                            <div class="mt-4 grid gap-3">
+                                <button id="citizenDispatchQuick" type="button" class="w-full rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">Call Emergency Services</button>
+                                <button id="citizenLocateHelp" type="button" class="w-full rounded-2xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-200">Locate Nearby Assistance</button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-3">
+                                <p class="text-sm font-semibold text-gray-600 uppercase tracking-[0.2em]">Safety Alert</p>
+                                <span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">Stay Aware</span>
+                            </div>
+                            <p class="text-sm text-gray-700 leading-6">If you feel unsafe, move to a secure location, keep your phone charged, and wait for the dispatch team to arrive. Share your exact location with responders.</p>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Find Help Tab -->
-            <div id="resourcesTab" class="tab-content hidden">
-                <div class="p-4">
-                    <!-- Resource Filters -->
-                    <div class="flex space-x-2 mb-4">
-                        <select id="resourceTypeFilter" class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
-                            <option value="">All Types</option>
-                            <option value="hospital">Hospitals</option>
-                            <option value="fire_station">Fire Service</option>
-                            <option value="police">Police</option>
-                            <option value="medical">Ambulance</option>
-                            <option value="disaster">NADMO</option>
-                            <option value="humanitarian">Red Cross</option>
-                            <option value="maritime">Maritime</option>
-                            <option value="aviation">Aviation</option>
-                            <option value="mental_health">Mental Health</option>
-                            <option value="support">Support Services</option>
-                            <option value="environmental">Environmental</option>
-                            <option value="health">Health Services</option>
-                            <option value="utility">Utilities</option>
-                        </select>
-                        <button id="openNowFilter" class="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm hover:bg-green-200 transition-colors">
-                            Open Now
-                        </button>
-                        <button id="verifiedFilter" class="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm hover:bg-blue-200 transition-colors">
-                            Verified
-                        </button>
+                <section class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                    <div class="flex items-center justify-between mb-5">
+                        <div>
+                            <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Recent Alerts</p>
+                            <h3 class="mt-2 text-xl font-semibold text-gray-900">Local incidents in your area</h3>
+                        </div>
+                        <button id="refreshCitizenAlerts" type="button" class="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Refresh</button>
                     </div>
-                    
-                    <h2 class="text-lg font-semibold text-gray-800 mb-4">Nearby Help Centers</h2>
-                    <div id="resourcesList" class="space-y-3">
-                        <!-- Resources will be populated here -->
-                    </div>
-                </div>
+                    <div id="citizenAlertsList" class="space-y-3"></div>
+                </section>
             </div>
-
-
-
-
         </div>
-
-        <!-- Responder Dashboard -->
         <div id="responderInterface" class="interface-content hidden">
-            <div class="p-4">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Responder Dashboard</h2>
-                
-                <!-- Navigation Tabs for Responders -->
-                <div class="bg-white border-b mb-4 rounded-lg">
-                    <div class="flex">
-                        <button class="resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm" data-tab="incidents">
-                            Active Incidents
-                        </button>
-                        <button class="resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="reports">
-                            Reports
-                        </button>
-                        <button class="resp-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="comms">
-                            Communications
-                        </button>
+            <div class="space-y-6">
+                <div class="grid gap-4 lg:grid-cols-3">
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Critical</p>
+                        <p id="criticalCount" class="mt-3 text-4xl font-semibold text-red-700">0</p>
+                        <p class="mt-2 text-sm text-gray-600">Urgent incidents requiring immediate dispatch.</p>
+                    </div>
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Moderate</p>
+                        <p id="moderateCount" class="mt-3 text-4xl font-semibold text-orange-600">0</p>
+                        <p class="mt-2 text-sm text-gray-600">Active incidents that are being managed.</p>
+                    </div>
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Low</p>
+                        <p id="lowCount" class="mt-3 text-4xl font-semibold text-green-700">0</p>
+                        <p class="mt-2 text-sm text-gray-600">Non-critical incidents under monitoring.</p>
                     </div>
                 </div>
-
-                <!-- Active Incidents Tab -->
-                <div id="incidentsTab" class="resp-tab-content">
-                    <!-- Incident Queue Controls -->
-                    <div class="flex space-x-2 mb-4">
-                        <select id="sortBy" class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
-                            <option value="urgency">Sort by Urgency</option>
-                            <option value="location">Sort by Location</option>
-                            <option value="time">Sort by Time</option>
-                        </select>
-                        <button id="refreshQueue" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors">
-                            Refresh
-                        </button>
-                    </div>
-                    
-                    <!-- Incident Queue -->
-                    <div id="incidentQueue" class="space-y-3">
-                        <!-- Incidents will be populated here -->
-                    </div>
-                </div>
-
-                <!-- Reports Tab (Shared Dashboard) -->
-                <div id="respReportsTab" class="resp-tab-content hidden">
-                    <!-- Same reports dashboard as citizens but with escalation actions -->
-                    <div class="space-y-4">
-                        <!-- Quick Stats -->
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="bg-red-50 p-3 rounded-lg text-center">
-                                <div class="text-lg font-bold text-red-600">12</div>
-                                <div class="text-xs text-red-700">Critical</div>
+                <div class="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 overflow-x-auto">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Incident Reports</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Current incidents</h3>
+                                </div>
+                                <button id="responderRefreshTable" type="button" class="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Refresh Table</button>
                             </div>
-                            <div class="bg-yellow-50 p-3 rounded-lg text-center">
-                                <div class="text-lg font-bold text-yellow-600">28</div>
-                                <div class="text-xs text-yellow-700">Pending</div>
-                            </div>
-                            <div class="bg-green-50 p-3 rounded-lg text-center">
-                                <div class="text-lg font-bold text-green-600">156</div>
-                                <div class="text-xs text-green-700">Resolved</div>
-                            </div>
+                            <table class="min-w-full text-left text-sm text-gray-700">
+                                <thead>
+                                    <tr class="border-b border-gray-200 text-xs uppercase text-gray-500">
+                                        <th class="py-3 pr-4">Type</th>
+                                        <th class="py-3 pr-4">Location</th>
+                                        <th class="py-3 pr-4">Status</th>
+                                        <th class="py-3 pr-4">Time</th>
+                                        <th class="py-3">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="responderIncidentTable" class="divide-y divide-gray-100"></tbody>
+                            </table>
                         </div>
-
-                        <!-- Escalation Actions -->
-                        <div class="bg-white rounded-lg p-4 shadow-sm">
-                            <h3 class="font-semibold text-gray-800 mb-3">Quick Actions</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button class="py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors">
-                                    Escalate to NADMO
-                                </button>
-                                <button class="py-2 px-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
-                                    Request Backup
-                                </button>
-                                <button class="py-2 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors">
-                                    Alert Media
-                                </button>
-                                <button class="py-2 px-3 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors">
-                                    State of Emergency
-                                </button>
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Incident Map</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Live incident overview</h3>
+                                </div>
+                                <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">Interactive</span>
                             </div>
-                        </div>
-
-                        <!-- Reports List -->
-                        <div class="bg-white rounded-lg shadow-sm">
-                            <div class="p-4 border-b">
-                                <h3 class="font-semibold text-gray-800">Recent Reports & Escalations</h3>
-                            </div>
-                            <div class="divide-y" id="responderReportsList">
-                                <!-- Reports will be populated here -->
+                            <div id="responderMap" class="relative h-72 overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+                                <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=60')] bg-cover bg-center opacity-30"></div>
+                                <div class="relative h-full grid grid-cols-3 gap-2 p-4">
+                                    <div class="resource-pin top-16 left-24 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center">F</div>
+                                    <div class="resource-pin top-28 left-60 bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center">A</div>
+                                    <div class="resource-pin top-52 left-40 bg-yellow-500 text-white rounded-full w-10 h-10 flex items-center justify-center">P</div>
+                                    <div class="absolute bottom-4 left-4 rounded-3xl bg-black/60 p-3 text-xs text-gray-100">Live incidents and assignment markers. Click assign in the table to link units.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Communications Tab -->
-                <div id="commsTab" class="resp-tab-content hidden">
-                    <!-- Secure Communication Hub -->
-                    <div class="bg-white rounded-lg border p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-semibold text-gray-800">Secure Communications</h3>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span class="text-xs text-gray-600">Encrypted</span>
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Responder Status</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Team availability</h3>
+                                </div>
+                            </div>
+                            <div class="grid gap-4">
+                                <div class="rounded-3xl bg-red-50 p-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm font-semibold text-red-700">Dispatched</p>
+                                            <p class="text-3xl font-semibold text-red-700" id="unitDispatched">0</p>
+                                        </div>
+                                        <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700">D</div>
+                                    </div>
+                                </div>
+                                <div class="rounded-3xl bg-orange-50 p-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm font-semibold text-orange-700">Busy</p>
+                                            <p class="text-3xl font-semibold text-orange-700" id="unitBusy">0</p>
+                                        </div>
+                                        <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 text-orange-700">B</div>
+                                    </div>
+                                </div>
+                                <div class="rounded-3xl bg-green-50 p-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm font-semibold text-green-700">Available</p>
+                                            <p class="text-3xl font-semibold text-green-700" id="unitAvailable">0</p>
+                                        </div>
+                                        <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-700">A</div>
+                                    </div>
+                                </div>
+                                <div class="rounded-3xl bg-slate-50 p-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm font-semibold text-slate-700">Offline</p>
+                                            <p class="text-3xl font-semibold text-slate-700" id="unitOffline">0</p>
+                                        </div>
+                                        <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700">O</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        
-                        <!-- Communication Tabs -->
-                        <div class="flex space-x-1 mb-3 bg-gray-100 rounded-lg p-1">
-                            <button class="comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md bg-white text-gray-900 shadow-sm" data-comm="coordinator">
-                                Coordinator
-                            </button>
-                            <button class="comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md text-gray-600 hover:text-gray-900" data-comm="team">
-                                Team Chat
-                            </button>
-                            <button class="comm-tab flex-1 py-2 px-3 text-xs font-medium rounded-md text-gray-600 hover:text-gray-900" data-comm="alerts">
-                                Alerts
-                            </button>
-                        </div>
-
-                        <!-- Coordinator Chat -->
-                        <div id="coordinatorChat" class="comm-content">
-                            <div id="chatMessages" class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
-                                <div class="mb-2">
-                                    <span class="font-medium text-blue-600">Control Center:</span>
-                                    <span class="text-gray-700">Fire truck dispatched to Kumasi Market. ETA 10 minutes.</span>
-                                    <span class="text-xs text-gray-500 block">2 mins ago</span>
-                                </div>
-                                <div class="mb-2">
-                                    <span class="font-medium text-green-600">You:</span>
-                                    <span class="text-gray-700">Acknowledged. En route to location.</span>
-                                    <span class="text-xs text-gray-500 block">1 min ago</span>
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Resource Status</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Vehicles & personnel</h3>
                                 </div>
                             </div>
-                            <div class="flex space-x-2">
-                                <input type="text" id="chatInput" placeholder="Type secure message..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
-                                <button id="sendChat" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors">
-                                    Send
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Team Chat -->
-                        <div id="teamChat" class="comm-content hidden">
-                            <div class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
-                                <div class="mb-2">
-                                    <span class="font-medium text-purple-600">Responder Alpha:</span>
-                                    <span class="text-gray-700">Medical unit needed at Tema Station.</span>
-                                    <span class="text-xs text-gray-500 block">5 mins ago</span>
+                            <div class="grid gap-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="rounded-3xl bg-slate-50 p-4">
+                                        <p class="text-sm font-semibold text-gray-600">Ambulances</p>
+                                        <p class="mt-3 text-3xl font-semibold text-green-700" id="resourceAmbulances">0</p>
+                                    </div>
+                                    <div class="rounded-3xl bg-slate-50 p-4">
+                                        <p class="text-sm font-semibold text-gray-600">Fire Trucks</p>
+                                        <p class="mt-3 text-3xl font-semibold text-red-700" id="resourceFireTrucks">0</p>
+                                    </div>
                                 </div>
-                                <div class="mb-2">
-                                    <span class="font-medium text-orange-600">Responder Beta:</span>
-                                    <span class="text-gray-700">Copy that. Medical team dispatched.</span>
-                                    <span class="text-xs text-gray-500 block">3 mins ago</span>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="rounded-3xl bg-slate-50 p-4">
+                                        <p class="text-sm font-semibold text-gray-600">Police Units</p>
+                                        <p class="mt-3 text-3xl font-semibold text-blue-700" id="resourcePoliceUnits">0</p>
+                                    </div>
+                                    <div class="rounded-3xl bg-slate-50 p-4">
+                                        <p class="text-sm font-semibold text-gray-600">EMS Personnel</p>
+                                        <p class="mt-3 text-3xl font-semibold text-green-700" id="resourceEMSPersonnel">0</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="flex space-x-2">
-                                <input type="text" placeholder="Message team..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
-                                <button class="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors">
-                                    Send
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Priority Alerts -->
-                        <div id="alertsChat" class="comm-content hidden">
-                            <div class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
-                                <div class="mb-2 p-2 bg-red-50 border-l-4 border-red-500 rounded">
-                                    <span class="font-medium text-red-600">HIGH PRIORITY:</span>
-                                    <span class="text-gray-700">Multiple casualties reported at Ring Road.</span>
-                                    <span class="text-xs text-gray-500 block">Just now</span>
-                                </div>
-                                <div class="mb-2 p-2 bg-yellow-50 border-l-4 border-yellow-500 rounded">
-                                    <span class="font-medium text-yellow-600">MEDIUM:</span>
-                                    <span class="text-gray-700">Traffic accident cleared on Liberation Road.</span>
-                                    <span class="text-xs text-gray-500 block">10 mins ago</span>
-                                </div>
-                            </div>
-                            <div class="text-center text-xs text-gray-500">
-                                Priority alerts are broadcast automatically
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Coordinator Console -->
         <div id="coordinatorInterface" class="interface-content hidden">
-            <div class="p-4">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-xl font-semibold text-gray-800">Coordinator Console</h2>
-                    <div class="flex items-center space-x-2">
-                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">PILOT PHASE</span>
-                        <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">LIVE</span>
+            <div class="space-y-6">
+                <div class="grid gap-4 lg:grid-cols-4">
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Total Incidents</p>
+                        <p id="coordTotalIncidents" class="mt-3 text-4xl font-semibold text-gray-900">0</p>
+                        <p class="mt-2 text-sm text-gray-600">Live incidents across all regions.</p>
+                    </div>
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Active Units</p>
+                        <p id="coordActiveUnits" class="mt-3 text-4xl font-semibold text-green-700">0</p>
+                        <p class="mt-2 text-sm text-gray-600">Responders currently online.</p>
+                    </div>
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Resource Usage</p>
+                        <p id="coordResourceUsage" class="mt-3 text-4xl font-semibold text-orange-600">0%</p>
+                        <p class="mt-2 text-sm text-gray-600">Current utilization rate.</p>
+                    </div>
+                    <div class="rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-500 uppercase tracking-[0.2em]">Pending Assignments</p>
+                        <p id="coordPendingAssignments" class="mt-3 text-4xl font-semibold text-red-700">0</p>
+                        <p class="mt-2 text-sm text-gray-600">Incidents waiting for assignment.</p>
                     </div>
                 </div>
-
-                <!-- Navigation Tabs for Coordinators -->
-                <div class="bg-white border-b mb-4 rounded-lg">
-                    <div class="flex">
-                        <button class="coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-red-600 border-b-2 border-red-600 text-sm" data-tab="overview">
-                            Overview
-                        </button>
-                        <button class="coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="reports">
-                            Reports
-                        </button>
-                        <button class="coord-tab-btn flex-1 py-2 px-2 text-center font-medium text-gray-500 hover:text-gray-700 text-sm" data-tab="command">
-                            Command
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Overview Tab -->
-                <div id="overviewTab" class="coord-tab-content">
-                    <!-- Pilot Phase Features -->
-                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6 border border-blue-200">
-                        <div class="flex items-center mb-2">
-                            <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                            </svg>
-                            <h3 class="font-semibold text-blue-800">Pilot Phase Active</h3>
-                        </div>
-                        <p class="text-sm text-blue-700 mb-3">Testing with Greater Accra, Ashanti, and Northern regions. Real-time data collection and feedback integration enabled.</p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button id="pilotFeedback" class="py-2 px-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
-                                Collect Feedback
-                            </button>
-                            <button id="pilotAnalytics" class="py-2 px-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors">
-                                View Analytics
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Heatmap -->
-                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
-                        <h3 class="font-semibold text-gray-800 mb-3">Incident Heatmap</h3>
-                        <div class="grid grid-cols-8 gap-1">
-                            <!-- Heatmap cells -->
-                        </div>
-                        <div class="flex justify-between text-xs text-gray-500 mt-2">
-                            <span>Low Activity</span>
-                            <span>High Activity</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Resource Tracker -->
-                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
-                        <h3 class="font-semibold text-gray-800 mb-3">Resource Tracker</h3>
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="text-center">
-                                <div class="text-2xl font-bold text-blue-600">24</div>
-                                <div class="text-sm text-gray-600">Volunteers</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="text-2xl font-bold text-green-600">8</div>
-                                <div class="text-sm text-gray-600">Vehicles</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="text-2xl font-bold text-orange-600">156</div>
-                                <div class="text-sm text-gray-600">Supplies</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Reports Tab (Shared Dashboard) -->
-                <div id="coordReportsTab" class="coord-tab-content hidden">
-                    <!-- Same reports dashboard with full coordinator privileges -->
-                    <div class="space-y-4">
-                        <!-- Quick Stats -->
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="bg-red-50 p-3 rounded-lg text-center">
-                                <div class="text-lg font-bold text-red-600">12</div>
-                                <div class="text-xs text-red-700">Critical</div>
-                            </div>
-                            <div class="bg-yellow-50 p-3 rounded-lg text-center">
-                                <div class="text-lg font-bold text-yellow-600">28</div>
-                                <div class="text-xs text-yellow-700">Pending</div>
-                            </div>
-                            <div class="bg-green-50 p-3 rounded-lg text-center">
-                                <div class="text-lg font-bold text-green-600">156</div>
-                                <div class="text-xs text-green-700">Resolved</div>
-                            </div>
-                        </div>
-
-                        <!-- Full Escalation Actions -->
-                        <div class="bg-white rounded-lg p-4 shadow-sm">
-                            <h3 class="font-semibold text-gray-800 mb-3">Command Actions</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button class="py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors">
-                                    Escalate to NADMO
-                                </button>
-                                <button class="py-2 px-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
-                                    Deploy Resources
-                                </button>
-                                <button class="py-2 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors">
-                                    Media Broadcast
-                                </button>
-                                <button class="py-2 px-3 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors">
-                                    Emergency Protocol
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Reports List -->
-                        <div class="bg-white rounded-lg shadow-sm">
-                            <div class="p-4 border-b">
-                                <h3 class="font-semibold text-gray-800">All Reports & Escalations</h3>
-                            </div>
-                            <div class="divide-y" id="coordinatorReportsList">
-                                <!-- Reports will be populated here -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Command Tab -->
-                <div id="commandTab" class="coord-tab-content hidden">
-                    <!-- Alert Composer -->
-                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
-                        <h3 class="font-semibold text-gray-800 mb-3">Broadcast Alert</h3>
-                        <textarea id="alertMessage" rows="3" placeholder="Compose alert message..." class="w-full p-3 border border-gray-300 rounded-lg mb-3"></textarea>
-                        <div class="flex space-x-2 mb-3">
-                            <label class="flex items-center space-x-2">
-                                <input type="checkbox" id="smsChannel" checked class="rounded">
-                                <span class="text-sm">SMS</span>
-                            </label>
-                            <label class="flex items-center space-x-2">
-                                <input type="checkbox" id="whatsappChannel" checked class="rounded">
-                                <span class="text-sm">WhatsApp</span>
-                            </label>
-                            <label class="flex items-center space-x-2">
-                                <input type="checkbox" id="ussdChannel" class="rounded">
-                                <span class="text-sm">USSD</span>
-                            </label>
-                        </div>
-                        <button id="broadcastAlert" class="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors">
-                            Broadcast Alert
-                        </button>
-                    </div>
-                    
-                    <!-- Command Center Communications -->
-                    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-semibold text-gray-800">Command Communications</h3>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span class="text-xs text-gray-600">Secure Channel</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Active Responders -->
-                        <div class="mb-4">
-                            <h4 class="text-sm font-medium text-gray-700 mb-2">Active Responders (8 online)</h4>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
-                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span class="text-sm">Fire Team Alpha</span>
+                <div class="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Analytics</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Incident trends</h3>
                                 </div>
-                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
-                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span class="text-sm">Medical Unit 3</span>
+                                <button id="refreshAnalytics" type="button" class="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Refresh</button>
+                            </div>
+                            <div class="grid gap-4 sm:grid-cols-3">
+                                <div class="rounded-3xl bg-slate-50 p-4">
+                                    <p class="text-xs uppercase tracking-[0.2em] text-gray-500">This Week</p>
+                                    <p class="mt-3 text-3xl font-semibold text-gray-900" id="trendThisWeek">24</p>
                                 </div>
-                                <div class="flex items-center space-x-2 p-2 bg-yellow-50 rounded-lg">
-                                    <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                    <span class="text-sm">Police Unit 7</span>
+                                <div class="rounded-3xl bg-slate-50 p-4">
+                                    <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Response</p>
+                                    <p class="mt-3 text-3xl font-semibold text-green-700" id="trendResponseTime">4.2 min</p>
                                 </div>
-                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
-                                    <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span class="text-sm">Rescue Team B</span>
+                                <div class="rounded-3xl bg-slate-50 p-4">
+                                    <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Capacity</p>
+                                    <p class="mt-3 text-3xl font-semibold text-orange-700" id="trendCapacity">78%</p>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Command Chat -->
-                        <div class="mb-4">
-                            <div id="commandMessages" class="h-32 overflow-y-auto bg-gray-50 rounded p-3 mb-3 text-sm">
-                                <div class="mb-2">
-                                    <span class="font-medium text-red-600">Fire Team Alpha:</span>
-                                    <span class="text-gray-700">Arrived at Kumasi Market. Fire contained.</span>
-                                    <span class="text-xs text-gray-500 block">1 min ago</span>
-                                </div>
-                                <div class="mb-2">
-                                    <span class="font-medium text-blue-600">You:</span>
-                                    <span class="text-gray-700">Excellent work. Medical support en route.</span>
-                                    <span class="text-xs text-gray-500 block">30 secs ago</span>
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Incident Table</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Assign responders</h3>
                                 </div>
                             </div>
-                            <div class="flex space-x-2">
-                                <select id="commandTarget" class="p-2 border border-gray-300 rounded-lg text-sm">
-                                    <option value="all">All Units</option>
-                                    <option value="fire">Fire Teams</option>
-                                    <option value="medical">Medical Units</option>
-                                    <option value="police">Police Units</option>
-                                </select>
-                                <input type="text" id="commandInput" placeholder="Command message..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
-                                <button id="sendCommand" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors">
-                                    Send
-                                </button>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-left text-sm text-gray-700">
+                                    <thead>
+                                        <tr class="border-b border-gray-200 text-xs uppercase text-gray-500">
+                                            <th class="py-3 pr-4">Type</th>
+                                            <th class="py-3 pr-4">Location</th>
+                                            <th class="py-3 pr-4">Status</th>
+                                            <th class="py-3 pr-4">Time</th>
+                                            <th class="py-3">Assign</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="coordinatorIncidentTable" class="divide-y divide-gray-100"></tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Export Reports -->
-                    <div class="bg-white rounded-lg p-4 shadow-sm">
-                        <h3 class="font-semibold text-gray-800 mb-3">Export Reports</h3>
-                        <div class="flex space-x-2">
-                            <button id="exportPDF" class="flex-1 py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors">
-                                Export PDF
-                            </button>
-                            <button id="exportCSV" class="flex-1 py-2 px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm transition-colors">
-                                Export CSV
-                            </button>
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Live Map</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Incident & unit assignments</h3>
+                                </div>
+                            </div>
+                            <div id="coordinatorMap" class="relative h-80 overflow-hidden rounded-3xl bg-slate-900 text-white">
+                                <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=60')] bg-cover bg-center opacity-30"></div>
+                                <div class="relative h-full p-4 text-sm">
+                                    <div class="rounded-3xl bg-black/50 p-3">Tap an incident row to assign a unit and update status.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">Admin Controls</p>
+                                    <h3 class="mt-2 text-xl font-semibold text-gray-900">Users & resources</h3>
+                                </div>
+                            </div>
+                            <div class="grid gap-3">
+                                <button id="manageUsers" type="button" class="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">Manage Users</button>
+                                <button id="manageResources" type="button" class="w-full rounded-2xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700">Manage Resources</button>
+                                <button id="reviewAssignments" type="button" class="w-full rounded-2xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-700">Review Assignments</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1381,7 +1182,7 @@
         };
 
         // DOM elements
-        const emergencyBtn = document.getElementById('reportEmergencyTile');
+        const emergencyBtn = document.getElementById('citizenOpenReportModal');
         const reportModal = document.getElementById('reportModal');
         const successModal = document.getElementById('successModal');
         const voiceModal = document.getElementById('voiceModal');
@@ -1390,6 +1191,7 @@
         const closeSuccess = document.getElementById('closeSuccess');
         const cancelReport = document.getElementById('cancelReport');
         const emergencyForm = document.getElementById('emergencyForm');
+        const citizenQuickReportForm = document.getElementById('citizenQuickReportForm');
         const useLocationBtn = document.getElementById('useLocationBtn');
         const languageSelect = document.getElementById('languageSelect');
         const roleSelect = document.getElementById('roleSelect');
@@ -1397,6 +1199,10 @@
         const tabContents = document.querySelectorAll('.tab-content');
         const hotlineBtn = document.getElementById('hotlineBtn');
         const connectionStatus = document.getElementById('connectionStatus');
+        const citizenAlertsList = document.getElementById('citizenAlertsList');
+        const refreshCitizenAlertsBtn = document.getElementById('refreshCitizenAlerts');
+        const responderIncidentTable = document.getElementById('responderIncidentTable');
+        const coordinatorIncidentTable = document.getElementById('coordinatorIncidentTable');
 
         // Interface elements
         const citizenInterface = document.getElementById('citizenInterface');
@@ -1801,9 +1607,11 @@
         // Initialize app
         function init() {
             renderResources();
+            renderCitizenAlerts();
             renderIncidentQueue();
+            renderResponderDashboard();
+            renderCoordinatorDashboard();
             renderHeatmap();
-            renderEscalationReports();
             setupEventListeners();
             updateConnectionStatus();
             
@@ -1817,27 +1625,58 @@
         // Event listeners
         function setupEventListeners() {
             // Emergency reporting
-            emergencyBtn.addEventListener('click', () => {
-                reportModal.classList.remove('hidden');
+            if (emergencyBtn) {
+                emergencyBtn.addEventListener('click', () => {
+                    reportModal?.classList.remove('hidden');
+                });
+            }
+
+            if (closeModal) {
+                closeModal.addEventListener('click', () => {
+                    reportModal?.classList.add('hidden');
+                });
+            }
+
+            if (closeSuccess) {
+                closeSuccess.addEventListener('click', () => {
+                    successModal?.classList.add('hidden');
+                });
+            }
+
+            if (cancelReport) {
+                cancelReport.addEventListener('click', () => {
+                    reportModal?.classList.add('hidden');
+                });
+            }
+
+            if (citizenQuickReportForm) {
+                citizenQuickReportForm.addEventListener('submit', handleCitizenQuickReportSubmit);
+            }
+
+            document.getElementById('citizenDispatchBtn')?.addEventListener('click', () => {
+                showNotification('Emergency dispatch requested. Responders are being notified.');
             });
 
-            document.getElementById('reportEmergencyTile').addEventListener('click', () => {
-                reportModal.classList.remove('hidden');
+            document.getElementById('citizenDispatchQuick')?.addEventListener('click', () => {
+                showNotification('Dispatch request sent. Please remain safe and wait for responders.');
             });
 
-            closeModal.addEventListener('click', () => {
-                reportModal.classList.add('hidden');
+            document.getElementById('citizenLocateHelp')?.addEventListener('click', () => {
+                switchTab('resources');
+                renderResources();
+                showNotification('Nearby help centers loaded.');
             });
 
-            closeSuccess.addEventListener('click', () => {
-                successModal.classList.add('hidden');
-            });
+            if (refreshCitizenAlertsBtn) {
+                refreshCitizenAlertsBtn.addEventListener('click', () => {
+                    renderCitizenAlerts();
+                    showNotification('Citizen alerts refreshed');
+                });
+            }
 
-            cancelReport.addEventListener('click', () => {
-                reportModal.classList.add('hidden');
-            });
-
-            emergencyForm.addEventListener('submit', handleEmergencySubmit);
+            if (emergencyForm) {
+                emergencyForm.addEventListener('submit', handleEmergencySubmit);
+            }
 
             // Location and media
             useLocationBtn.addEventListener('click', () => {
@@ -2282,6 +2121,148 @@
             });
         }
 
+        // Citizen alert rendering
+        function getSeverityLabel(priority) {
+            const labels = {
+                high: { text: 'High', className: 'bg-red-100 text-red-700' },
+                medium: { text: 'Medium', className: 'bg-yellow-100 text-yellow-700' },
+                low: { text: 'Low', className: 'bg-green-100 text-green-700' }
+            };
+            return labels[priority] || labels.medium;
+        }
+
+        function renderCitizenAlerts() {
+            if (!citizenAlertsList) return;
+            citizenAlertsList.innerHTML = '';
+
+            const recentAlerts = sampleAlerts.slice(0, 5);
+            recentAlerts.forEach(alert => {
+                const severity = getSeverityLabel(alert.priority);
+                const alertCard = document.createElement('div');
+                alertCard.className = 'rounded-3xl border border-gray-200 bg-white p-5 shadow-sm';
+                alertCard.innerHTML = `
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-600 uppercase tracking-[0.2em]">${alert.type} Alert</p>
+                            <h4 class="mt-2 text-lg font-semibold text-gray-900">${alert.location}</h4>
+                            <p class="mt-1 text-sm text-gray-600">${alert.time} • ${alert.status}</p>
+                        </div>
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${severity.className}">${severity.text}</span>
+                    </div>
+                    <p class="mt-4 text-sm text-gray-700">${alert.description}</p>
+                `;
+                citizenAlertsList.appendChild(alertCard);
+            });
+        }
+
+        function renderResponderDashboard() {
+            const criticalCount = document.getElementById('criticalCount');
+            const moderateCount = document.getElementById('moderateCount');
+            const lowCount = document.getElementById('lowCount');
+            const unitDispatched = document.getElementById('unitDispatched');
+            const unitBusy = document.getElementById('unitBusy');
+            const unitAvailable = document.getElementById('unitAvailable');
+            const unitOffline = document.getElementById('unitOffline');
+            const resourceAmbulances = document.getElementById('resourceAmbulances');
+            const resourceFireTrucks = document.getElementById('resourceFireTrucks');
+            const resourcePoliceUnits = document.getElementById('resourcePoliceUnits');
+            const resourceEMSPersonnel = document.getElementById('resourceEMSPersonnel');
+
+            const critical = sampleIncidents.filter(i => i.priority === 'high').length;
+            const moderate = sampleIncidents.filter(i => i.priority === 'medium').length;
+            const low = sampleIncidents.filter(i => i.priority === 'low').length;
+
+            if (criticalCount) criticalCount.textContent = String(critical);
+            if (moderateCount) moderateCount.textContent = String(moderate);
+            if (lowCount) lowCount.textContent = String(low);
+            if (unitDispatched) unitDispatched.textContent = '6';
+            if (unitBusy) unitBusy.textContent = '3';
+            if (unitAvailable) unitAvailable.textContent = '8';
+            if (unitOffline) unitOffline.textContent = '2';
+            if (resourceAmbulances) resourceAmbulances.textContent = '8';
+            if (resourceFireTrucks) resourceFireTrucks.textContent = '5';
+            if (resourcePoliceUnits) resourcePoliceUnits.textContent = '10';
+            if (resourceEMSPersonnel) resourceEMSPersonnel.textContent = '14';
+
+            renderResponderIncidentTable();
+        }
+
+        function renderResponderIncidentTable() {
+            if (!responderIncidentTable) return;
+            responderIncidentTable.innerHTML = '';
+            sampleIncidents.forEach(incident => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-100';
+                row.innerHTML = `
+                    <td class="py-4 pr-4 text-sm text-gray-700 capitalize">${incident.type}</td>
+                    <td class="py-4 pr-4 text-sm text-gray-700">${incident.location}</td>
+                    <td class="py-4 pr-4 text-sm font-semibold ${incident.priority === 'high' ? 'text-red-600' : incident.priority === 'medium' ? 'text-yellow-600' : 'text-green-600'}">${incident.priority}</td>
+                    <td class="py-4 pr-4 text-sm text-gray-700">${incident.time}</td>
+                    <td class="py-4 text-sm">
+                        <button class="rounded-full bg-blue-50 px-3 py-2 text-blue-700 hover:bg-blue-100" onclick="assignResponder(${incident.id})">Assign</button>
+                    </td>
+                `;
+                responderIncidentTable.appendChild(row);
+            });
+        }
+
+        function renderCoordinatorDashboard() {
+            const totalIncidents = document.getElementById('coordTotalIncidents');
+            const activeUnits = document.getElementById('coordActiveUnits');
+            const resourceUsage = document.getElementById('coordResourceUsage');
+            const pendingAssignments = document.getElementById('coordPendingAssignments');
+
+            if (totalIncidents) totalIncidents.textContent = String(sampleIncidents.length + 4);
+            if (activeUnits) activeUnits.textContent = '28';
+            if (resourceUsage) resourceUsage.textContent = '78%';
+            if (pendingAssignments) pendingAssignments.textContent = '7';
+
+            renderCoordinatorIncidentTable();
+        }
+
+        function renderCoordinatorIncidentTable() {
+            if (!coordinatorIncidentTable) return;
+            coordinatorIncidentTable.innerHTML = '';
+            sampleIncidents.forEach(incident => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-100';
+                row.innerHTML = `
+                    <td class="py-4 pr-4 text-sm text-gray-700 capitalize">${incident.type}</td>
+                    <td class="py-4 pr-4 text-sm text-gray-700">${incident.location}</td>
+                    <td class="py-4 pr-4 text-sm font-semibold ${incident.priority === 'high' ? 'text-red-600' : incident.priority === 'medium' ? 'text-yellow-600' : 'text-green-600'}">${incident.priority}</td>
+                    <td class="py-4 pr-4 text-sm text-gray-700">${incident.time}</td>
+                    <td class="py-4 text-sm">
+                        <button class="rounded-full bg-red-50 px-3 py-2 text-red-700 hover:bg-red-100" onclick="assignResponder(${incident.id})">Assign</button>
+                    </td>
+                `;
+                coordinatorIncidentTable.appendChild(row);
+            });
+        }
+
+        function assignResponder(incidentId) {
+            const incident = sampleIncidents.find(i => i.id === incidentId);
+            if (!incident) return;
+            incident.assignedTo = 'Assigned by Coordinator';
+            renderResponderIncidentTable();
+            renderCoordinatorIncidentTable();
+            showNotification(`Responder assigned to incident at ${incident.location}`);
+        }
+
+        function handleCitizenQuickReportSubmit(e) {
+            e.preventDefault();
+            const type = document.getElementById('citizenType')?.value;
+            const location = document.getElementById('citizenLocation')?.value;
+            const description = document.getElementById('citizenDescription')?.value;
+            if (!type || !location) {
+                alert('Please complete the incident type and location fields.');
+                return;
+            }
+            addNewAlert({ type, location, region: 'greater_accra', time: 'Just now', status: 'reported', priority: 'high', description });
+            renderCitizenAlerts();
+            showNotification('Citizen quick report submitted. Assistance is on the way.');
+            document.getElementById('citizenQuickReportForm').reset();
+        }
+
         // Call resource
         function callResource(phone) {
             alert(`Calling ${phone}\n\nIn a real implementation, this would initiate a phone call.`);
@@ -2426,11 +2407,9 @@
                 currentRole = targetRole;
                 
                 document.getElementById('loginModal').classList.add('hidden');
+                document.getElementById('roleSelect').value = targetRole;
                 switchInterface(targetRole);
                 showNotification(`Welcome, ${userId}! Logged into ${targetRole} platform.`);
-                
-                // Update role selector
-                document.getElementById('roleSelect').value = targetRole;
             } else {
                 // Failed login
                 document.getElementById('loginError').classList.remove('hidden');
@@ -2471,10 +2450,12 @@
             switch (role) {
                 case 'citizen':
                     citizenInterface.classList.remove('hidden');
+                    renderCitizenAlerts();
                     break;
                 case 'responder':
                     if (isAuthenticated && authenticatedRole === 'responder') {
                         responderInterface.classList.remove('hidden');
+                        renderResponderDashboard();
                     } else {
                         showLoginModal('responder');
                         return;
@@ -2483,6 +2464,7 @@
                 case 'coordinator':
                     if (isAuthenticated && authenticatedRole === 'coordinator') {
                         coordinatorInterface.classList.remove('hidden');
+                        renderCoordinatorDashboard();
                     } else {
                         showLoginModal('coordinator');
                         return;
@@ -2580,13 +2562,7 @@
             const t = translations[lang] || translations.en;
             
             // Update main tiles
-            const reportTile = document.getElementById('reportEmergencyTile');
             const findHelpTile = document.getElementById('findHelpTile');
-            
-            if (reportTile) {
-                const titleEl = reportTile.querySelector('h3');
-                if (titleEl) titleEl.textContent = t.reportEmergency;
-            }
             if (findHelpTile) {
                 const titleEl = findHelpTile.querySelector('h3');
                 if (titleEl) titleEl.textContent = t.findHelp;
