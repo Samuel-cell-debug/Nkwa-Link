@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nkwalink Emergency Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .emergency-pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .status-critical {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-high {
+            background-color: #fed7aa;
+            color: #92400e;
+        }
+        
+        .status-medium {
+            background-color: #fef3c7;
+            color: #78350f;
+        }
+        
+        .status-low {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+        
+        .incident-card {
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+        }
+        
+        .incident-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .incident-card-critical {
+            border-left-color: #dc2626;
+        }
+        
+        .incident-card-high {
+            border-left-color: #ea580c;
+        }
+        
+        .incident-card-medium {
+            border-left-color: #f59e0b;
+        }
+        
+        .incident-card-low {
+            border-left-color: #10b981;
+        }
+        
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+        }
+        
+        .heatmap-cell {
+            width: 100%;
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+        }
+        
+        .heatmap-cell:hover {
+            transform: scale(1.15);
+            z-index: 10;
+        }
+        
+        .resource-status {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: #f3f4f6;
+            border-radius: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .resource-indicator {
+            width: 3px;
+            height: 24px;
+            border-radius: 9999px;
+        }
+        
+        .resource-active {
+            background-color: #10b981;
+        }
+        
+        .resource-busy {
+            background-color: #ea580c;
+        }
+        
+        .resource-offline {
+            background-color: #6b7280;
+        }
+        
+        .message-thread {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
+            word-wrap: break-word;
+        }
+        
+        .message-sent {
+            background-color: #dc2626;
+            color: white;
+            margin-left: 2rem;
+            text-align: right;
+        }
+        
+        .message-received {
+            background-color: #e5e7eb;
+            color: #1f2937;
+            margin-right: 2rem;
+        }
+        
+        .alert-broadcast {
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-urgent {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+        }
+        
+        .alert-warning {
+            background: linear-gradient(135deg, #ea580c, #c2410c);
+            color: white;
+        }
+        
+        .alert-info {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+        }
+        
+        .resource-card {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .resource-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #10b981, transparent);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .high-contrast-text {
+            color: #111827;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        
+        .high-contrast-heading {
+            color: #000;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-red-600 to-red-700 text-white p-4 shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+                        <span class="text-red-600 font-bold text-lg">NK</span>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold">Nkwalink</h1>
+                        <p class="text-xs text-red-100">Emergency Response Dashboard</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- Connection Status -->
+                    <div class="flex items-center space-x-2">
+                        <div id="connectionStatus" class="w-3 h-3 rounded-full bg-green-400"></div>
+                        <span id="connectionText" class="text-sm font-medium">Online</span>
+                    </div>
+                    
+                    <!-- Language Selector -->
+                    <select id="languageSelect" class="bg-red-700 hover:bg-red-800 text-white text-sm rounded px-3 py-2 border-none focus:ring-2 focus:ring-white">
+                        <option value="en">English</option>
+                        <option value="tw">Twi</option>
+                        <option value="ee">Ewe</option>
+                        <option value="ha">Hausa</option>
+                    </select>
+                    
+                    <!-- User Menu -->
+                    <button id="userMenuBtn" class="flex items-center space-x-2 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg transition-colors">
+                        <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <span id="userDisplayName" class="text-sm font-medium">User</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Quick Info Bar -->
+            <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                <div class="bg-red-700/50 rounded px-3 py-2">
+                    <span class="text-red-100">Active Incidents</span>
+                    <p class="text-lg font-bold" id="headerIncidentCount">0</p>
+                </div>
+                <div class="bg-red-700/50 rounded px-3 py-2">
+                    <span class="text-red-100">Response Rate</span>
+                    <p class="text-lg font-bold" id="headerResponseRate">--</p>
+                </div>
+                <div class="bg-red-700/50 rounded px-3 py-2">
+                    <span class="text-red-100">Available Units</span>
+                    <p class="text-lg font-bold" id="headerAvailableUnits">0</p>
+                </div>
+                <div class="bg-red-700/50 rounded px-3 py-2">
+                    <span class="text-red-100">Alerts</span>
+                    <p class="text-lg font-bold emergency-pulse" id="headerAlerts">0</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Citizen Dashboard -->
+        <div id="citizenDashboard" class="dashboard-section">
+            <div class="space-y-6">
+                <!-- Emergency Report Section -->
+                <div class="grid gap-6 lg:grid-cols-3">
+                    <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                        <h2 class="high-contrast-heading mb-4">Quick Emergency Report</h2>
+                        <form id="citizenReportForm" class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Emergency Type</label>
+                                    <select id="citizenEmergencyType" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required>
+                                        <option value="">Select type</option>
+                                        <option value="fire">🔥 Fire</option>
+                                        <option value="medical">🏥 Medical</option>
+                                        <option value="accident">🚗 Accident</option>
+                                        <option value="crime">🚨 Crime</option>
+                                        <option value="flood">🌊 Flood</option>
+                                        <option value="other">❓ Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                                    <select id="citizenPriority" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required>
+                                        <option value="high">🔴 Critical</option>
+                                        <option value="medium">🟡 High</option>
+                                        <option value="low">🟢 Low</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="citizenLocation" placeholder="Enter location or use GPS" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required>
+                                    <button type="button" id="useGPSBtn" class="px-4 py-3 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+                                        📍 GPS
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                <textarea id="citizenDescription" rows="3" placeholder="Describe the emergency situation..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"></textarea>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Contact Number</label>
+                                <input type="tel" id="citizenPhone" placeholder="Your phone number" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button type="button" id="citizenVoiceBtn" class="flex-1 px-4 py-3 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                                    <span>🎤 Voice Input</span>
+                                </button>
+                                <button type="button" id="citizenMediaBtn" class="flex-1 px-4 py-3 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                                    <span>📷 Add Media</span>
+                                </button>
+                                <button type="submit" class="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold">
+                                    Submit Report
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="space-y-4">
+                        <div class="bg-red-50 rounded-lg p-6 border-l-4 border-red-600">
+                            <h3 class="font-bold text-lg mb-4 text-red-900">Emergency Hotlines</h3>
+                            <div class="space-y-2">
+                                <button class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold" onclick="callHotline('191')">
+                                    <span class="text-lg">🚔</span> Police (191)
+                                </button>
+                                <button class="w-full px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors font-semibold" onclick="callHotline('192')">
+                                    <span class="text-lg">🚒</span> Fire (192)
+                                </button>
+                                <button class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold" onclick="callHotline('193')">
+                                    <span class="text-lg">🚑</span> Ambulance (193)
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-600">
+                            <h4 class="font-semibold text-blue-900 mb-2">Safety Tips</h4>
+                            <ul class="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                                <li>Stay calm and provide accurate details</li>
+                                <li>Move to a safe location</li>
+                                <li>Keep your phone charged</li>
+                                <li>Wait for responders to arrive</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Alerts -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="high-contrast-heading mb-4">Local Emergency Alerts</h3>
+                    <div id="citizenAlertsContainer" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Responder Dashboard -->
+        <div id="responderDashboard" class="dashboard-section hidden">
+            <div class="space-y-6">
+                <!-- Status Overview -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-600">
+                        <p class="text-sm font-semibold text-gray-600">Critical</p>
+                        <p class="text-3xl font-bold text-red-600 mt-2" id="respCriticalCount">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-orange-600">
+                        <p class="text-sm font-semibold text-gray-600">High Priority</p>
+                        <p class="text-3xl font-bold text-orange-600 mt-2" id="respHighCount">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+                        <p class="text-sm font-semibold text-gray-600">Medium</p>
+                        <p class="text-3xl font-bold text-yellow-600 mt-2" id="respMediumCount">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-600">
+                        <p class="text-sm font-semibold text-gray-600">Low</p>
+                        <p class="text-3xl font-bold text-green-600 mt-2" id="respLowCount">0</p>
+                    </div>
+                </div>
+                
+                <!-- Main Content -->
+                <div class="grid gap-6 lg:grid-cols-3">
+                    <!-- Incident Queue -->
+                    <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                        <h3 class="high-contrast-heading mb-4">Incident Queue</h3>
+                        <div id="responderIncidentQueue" class="space-y-3 max-h-96 overflow-y-auto"></div>
+                    </div>
+                    
+                    <!-- My Status -->
+                    <div class="space-y-4">
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h4 class="font-bold text-lg mb-4">My Status</h4>
+                            <select id="responderStatusSelect" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-4">
+                                <option value="available">🟢 Available</option>
+                                <option value="busy">🟡 On Assignment</option>
+                                <option value="break">⏸ On Break</option>
+                                <option value="offline">⚫ Offline</option>
+                            </select>
+                            <div id="responderTeamInfo" class="text-sm text-gray-600">
+                                <p class="mb-2"><strong>Team:</strong> <span id="respTeamName">-</span></p>
+                                <p><strong>Location:</strong> <span id="respLocationName">-</span></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Resources -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h4 class="font-bold text-lg mb-4">Available Resources</h4>
+                            <div id="responderResourcesContainer" class="space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Communications -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="high-contrast-heading mb-4">Team Communications</h3>
+                    <div class="grid gap-6 lg:grid-cols-2">
+                        <div>
+                            <h4 class="font-semibold mb-3">Command Center</h4>
+                            <div class="border border-gray-200 rounded-lg p-4 space-y-3 h-64 overflow-y-auto message-thread" id="responderChatThread">
+                            </div>
+                            <div class="flex gap-2 mt-3">
+                                <input type="text" id="responderChatInput" placeholder="Type message..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                                <button id="responderSendChat" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold mb-3">Team Status</h4>
+                            <div id="responderTeamStatusContainer" class="space-y-2 h-64 overflow-y-auto"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coordinator Dashboard -->
+        <div id="coordinatorDashboard" class="dashboard-section hidden">
+            <div class="space-y-6">
+                <!-- KPIs -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm font-semibold text-gray-600">Total Incidents</p>
+                        <p class="text-3xl font-bold text-gray-900 mt-2" id="coordTotalIncidents">0</p>
+                        <p class="text-xs text-gray-500 mt-1">Active today</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm font-semibold text-gray-600">Response Time</p>
+                        <p class="text-3xl font-bold text-green-600 mt-2" id="coordAvgResponse">--</p>
+                        <p class="text-xs text-gray-500 mt-1">Average</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm font-semibold text-gray-600">Units Active</p>
+                        <p class="text-3xl font-bold text-blue-600 mt-2" id="coordActiveUnits">0</p>
+                        <p class="text-xs text-gray-500 mt-1">Available</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-sm font-semibold text-gray-600">Capacity</p>
+                        <p class="text-3xl font-bold text-orange-600 mt-2" id="coordCapacityUsage">0%</p>
+                        <p class="text-xs text-gray-500 mt-1">Resource utilization</p>
+                    </div>
+                </div>
+                
+                <!-- Main Dashboard Grid -->
+                <div class="grid gap-6 lg:grid-cols-3">
+                    <!-- Incident Heatmap -->
+                    <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                        <h3 class="high-contrast-heading mb-4">Incident Heatmap</h3>
+                        <p class="text-sm text-gray-600 mb-4">Emergency activity patterns by region</p>
+                        <div id="coordinatorHeatmap" class="heatmap-grid"></div>
+                    </div>
+                    
+                    <!-- Resource Overview -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="font-bold text-lg mb-4">Resource Status</h3>
+                        <div id="coordinatorResourcesOverview" class="space-y-3"></div>
+                    </div>
+                </div>
+                
+                <!-- Incident Management -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="high-contrast-heading mb-4">Active Incidents</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="border-b border-gray-200">
+                                <tr class="text-left">
+                                    <th class="pb-3 font-semibold text-gray-700">ID</th>
+                                    <th class="pb-3 font-semibold text-gray-700">Type</th>
+                                    <th class="pb-3 font-semibold text-gray-700">Location</th>
+                                    <th class="pb-3 font-semibold text-gray-700">Priority</th>
+                                    <th class="pb-3 font-semibold text-gray-700">Status</th>
+                                    <th class="pb-3 font-semibold text-gray-700">Assigned Unit</th>
+                                    <th class="pb-3 font-semibold text-gray-700">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coordinatorIncidentTable" class="divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Alert Broadcasting -->
+                <div class="grid gap-6 lg:grid-cols-2">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="high-contrast-heading mb-4">Broadcast Alert</h3>
+                        <form id="alertBroadcastForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Alert Type</label>
+                                <select id="alertType" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                                    <option value="urgent">🔴 Urgent</option>
+                                    <option value="warning">🟡 Warning</option>
+                                    <option value="info">🔵 Information</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Message</label>
+                                <textarea id="alertMessage" rows="4" placeholder="Enter alert message..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Channels</label>
+                                <div class="space-y-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="alertSMS" checked class="mr-2"> SMS
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="alertWhatsApp" checked class="mr-2"> WhatsApp
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="alertUSSD" class="mr-2"> USSD
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold">
+                                Broadcast Alert
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Recent Alerts -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="high-contrast-heading mb-4">Recent Alerts</h3>
+                        <div id="coordinatorRecentAlerts" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                    </div>
+                </div>
+                
+                <!-- Analytics & Reports -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="high-contrast-heading">Analytics & Reports</h3>
+                        <button id="exportReportBtn" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold">
+                            📥 Export Report
+                        </button>
+                    </div>
+                    <div class="grid gap-6 lg:grid-cols-2">
+                        <div>
+                            <h4 class="font-semibold mb-3">Incidents by Type</h4>
+                            <canvas id="incidentChart"></canvas>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold mb-3">Response Times</h4>
+                            <canvas id="responseChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg max-w-sm w-full p-6 text-center slide-in">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2" id="successTitle">Success</h3>
+            <p class="text-gray-600 mb-6" id="successMessage">Operation completed successfully</p>
+            <button id="closeSuccessBtn" class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <script src="dashboard-logic.js"></script>
+</body>
+</html>
