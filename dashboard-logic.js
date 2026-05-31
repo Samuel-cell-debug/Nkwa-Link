@@ -517,41 +517,81 @@ function renderCoordinatorIntegrationStatus() {
 }
 
 function connectDispatchIntegration() {
-    simulateIntegration('dispatch').then(() => {
-        systemIntegrations.dispatch = true;
-        renderCoordinatorIntegrationStatus();
-        showSuccess('Dispatch Connected', 'Emergency dispatch integration is now active.');
-    });
+    attemptIntegration('dispatch')
+        .then(() => {
+            systemIntegrations.dispatch = true;
+            renderCoordinatorIntegrationStatus();
+            showSuccess('Dispatch Connected', 'Emergency dispatch integration is now active.');
+        })
+        .catch(err => {
+            showError('Dispatch integration failed: ' + err.message);
+        });
 }
 
 function connectHospitalIntegration() {
-    simulateIntegration('hospital').then(() => {
-        systemIntegrations.hospital = true;
-        renderCoordinatorIntegrationStatus();
-        showSuccess('Hospital Connected', 'Hospital system integration is now active.');
-    });
+    attemptIntegration('hospital')
+        .then(() => {
+            systemIntegrations.hospital = true;
+            renderCoordinatorIntegrationStatus();
+            showSuccess('Hospital Connected', 'Hospital system integration is now active.');
+        })
+        .catch(err => {
+            showError('Hospital integration failed: ' + err.message);
+        });
 }
 
 function connectGovernmentIntegration() {
-    simulateIntegration('government').then(() => {
-        systemIntegrations.government = true;
-        renderCoordinatorIntegrationStatus();
-        showSuccess('Government DB Connected', 'Government database connection is now active.');
-    });
+    attemptIntegration('government')
+        .then(() => {
+            systemIntegrations.government = true;
+            renderCoordinatorIntegrationStatus();
+            showSuccess('Government DB Connected', 'Government database connection is now active.');
+        })
+        .catch(err => {
+            showError('Government integration failed: ' + err.message);
+        });
 }
 
 function connectBroadcastSystem() {
-    simulateIntegration('broadcast').then(() => {
-        systemIntegrations.broadcast = true;
-        renderCoordinatorIntegrationStatus();
-        showSuccess('Broadcast Activated', 'National emergency broadcast system is now online.');
-    });
+    attemptIntegration('broadcast')
+        .then(() => {
+            systemIntegrations.broadcast = true;
+            renderCoordinatorIntegrationStatus();
+            showSuccess('Broadcast Activated', 'National emergency broadcast system is now online.');
+        })
+        .catch(err => {
+            showError('Broadcast activation failed: ' + err.message);
+        });
 }
 
-function simulateIntegration(type) {
-    return new Promise(resolve => {
-        setTimeout(resolve, 800);
-    });
+async function attemptIntegration(type, retries = 3) {
+    const url = `/api/integrations/${type}/connect`;
+    let attempt = 0;
+    const maxDelay = 2000;
+
+    while (attempt < retries) {
+        attempt += 1;
+        try {
+            // update UI
+            const statusEl = document.getElementById(`${type}IntegrationStatus`);
+            if (statusEl) statusEl.textContent = 'Connecting...';
+
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timestamp: Date.now() }) });
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const data = await res.json();
+            return data;
+        } catch (err) {
+            if (attempt >= retries) {
+                // final failure
+                const statusEl = document.getElementById(`${type}IntegrationStatus`);
+                if (statusEl) statusEl.textContent = 'Disconnected';
+                throw err;
+            }
+            // backoff
+            const delay = Math.min(maxDelay, 300 * Math.pow(2, attempt));
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
 }
 
 function assignIncidentToService(incidentId) {
@@ -1072,7 +1112,16 @@ async function subscribeToPushNotifications() {
         return;
     }
 
-    document.getElementById('notificationStatusText').textContent = 'Push notifications enabled locally.';
+    const statusText = document.getElementById('notificationStatusText');
+    if (statusText) {
+        statusText.textContent = 'Push notifications enabled locally.';
+    }
+    const button = document.getElementById('enablePushBtn');
+    if (button) {
+        button.textContent = 'Push Enabled';
+        button.disabled = true;
+        button.classList.add('opacity-50', 'cursor-not-allowed');
+    }
     showSuccess('Push Enabled', 'Local push notifications are now enabled.');
 }
 
