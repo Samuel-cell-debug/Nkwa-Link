@@ -65,6 +65,18 @@ let messages = [
 ];
 
 let alerts = [];
+let incidentChartInstance = null;
+let responseChartInstance = null;
+let forecastChartInstance = null;
+let gpsWatchId = null;
+let pushSubscription = null;
+let swRegistration = null;
+let systemIntegrations = {
+    dispatch: false,
+    hospital: false,
+    government: false,
+    broadcast: false
+};
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -76,13 +88,40 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeDashboard() {
     updateHeaderInfo();
     populateLanguageOptions();
+    monitorConnectionStatus();
+    registerServiceWorker();
 }
 
 function setupEventListeners() {
     // Language selector
-    document.getElementById('languageSelect').addEventListener('change', (e) => {
+    document.getElementById('languageSelect')?.addEventListener('change', (e) => {
         setLanguage(e.target.value);
     });
+
+    document.getElementById('enablePushBtn')?.addEventListener('click', () => {
+        subscribeToPushNotifications();
+    });
+
+    document.getElementById('startGpsTrackingBtn')?.addEventListener('click', () => {
+        startResponderLocationTracking();
+    });
+
+    document.getElementById('stopGpsTrackingBtn')?.addEventListener('click', () => {
+        stopResponderLocationTracking();
+    });
+
+    window.addEventListener('online', () => {
+        setConnectionIndicator(true);
+        syncOfflineReportsIfOnline();
+    });
+
+    window.addEventListener('offline', () => {
+        setConnectionIndicator(false);
+    });
+
+    // User menu
+    document.getElementById('userMenuBtn')?.addEventListener('click', showUserMenu);
+
     
     // User menu
     document.getElementById('userMenuBtn').addEventListener('click', showUserMenu);
@@ -265,7 +304,7 @@ function handleCitizenReport(e) {
     }
     
     const newIncident = {
-        id: `INC-${Math.floor(Math.random() * 10000)}`,
+        id: `INC-${Math.floor(Math.random() * 100000)}`,
         type,
         location,
         priority,
@@ -273,13 +312,23 @@ function handleCitizenReport(e) {
         time: new Date(),
         reporter: { name: currentUser.name, phone },
         description,
-        assignedUnit: null
+        assignedUnit: null,
+        offline: !navigator.onLine
     };
-    
+
     incidents.push(newIncident);
     updateHeaderInfo();
-    
-    showSuccess('Emergency Report Submitted', `Your report ID is: ${newIncident.id}`);
+    renderDashboard('citizen');
+
+    if (!navigator.onLine) {
+        savePendingReport(newIncident)
+            .then(() => enqueueReportSync())
+            .catch(() => console.warn('Could not queue report for later sync'));
+        showSuccess('Offline Report Queued', `Report ${newIncident.id} will sync when online`);
+    } else {
+        showSuccess('Emergency Report Submitted', `Your report ID is: ${newIncident.id}`);
+    }
+
     document.getElementById('citizenReportForm').reset();
 }
 
@@ -452,11 +501,84 @@ function sendResponderMessage() {
 // ===== COORDINATOR DASHBOARD =====
 function renderCoordinatorDashboard() {
     renderCoordinatorStats();
+    renderCoordinatorIntegrationStatus();
     renderCoordinatorHeatmap();
     renderCoordinatorResources();
     renderCoordinatorIncidentTable();
     renderCoordinatorRecentAlerts();
     renderCoordinatorCharts();
+}
+
+function renderCoordinatorIntegrationStatus() {
+    document.getElementById('dispatchIntegrationStatus').textContent = systemIntegrations.dispatch ? 'Connected' : 'Disconnected';
+    document.getElementById('hospitalIntegrationStatus').textContent = systemIntegrations.hospital ? 'Connected' : 'Disconnected';
+    document.getElementById('governmentIntegrationStatus').textContent = systemIntegrations.government ? 'Connected' : 'Disconnected';
+    document.getElementById('broadcastSystemStatus').textContent = systemIntegrations.broadcast ? 'Online' : 'Offline';
+}
+
+function connectDispatchIntegration() {
+    simulateIntegration('dispatch').then(() => {
+        systemIntegrations.dispatch = true;
+        renderCoordinatorIntegrationStatus();
+        showSuccess('Dispatch Connected', 'Emergency dispatch integration is now active.');
+    });
+}
+
+function connectHospitalIntegration() {
+    simulateIntegration('hospital').then(() => {
+        systemIntegrations.hospital = true;
+        renderCoordinatorIntegrationStatus();
+        showSuccess('Hospital Connected', 'Hospital system integration is now active.');
+    });
+}
+
+function connectGovernmentIntegration() {
+    simulateIntegration('government').then(() => {
+        systemIntegrations.government = true;
+        renderCoordinatorIntegrationStatus();
+        showSuccess('Government DB Connected', 'Government database connection is now active.');
+    });
+}
+
+function connectBroadcastSystem() {
+    simulateIntegration('broadcast').then(() => {
+        systemIntegrations.broadcast = true;
+        renderCoordinatorIntegrationStatus();
+        showSuccess('Broadcast Activated', 'National emergency broadcast system is now online.');
+    });
+}
+
+function simulateIntegration(type) {
+    return new Promise(resolve => {
+        setTimeout(resolve, 800);
+    });
+}
+
+function assignIncidentToService(incidentId) {
+    const incident = incidents.find(i => i.id === incidentId);
+    if (!incident) return;
+
+    const route = getServiceRoute(incident.type);
+    incident.assignedUnit = route.unit;
+    incident.status = route.status;
+    updateHeaderInfo();
+    renderCoordinatorIncidentTable();
+    showSuccess('Incident Routed', `Incident ${incidentId} routed to ${route.label}.`);
+}
+
+function getServiceRoute(type) {
+    switch (type) {
+        case 'fire':
+            return { unit: 'FIR-001', label: 'Fire Service', status: 'assigned' };
+        case 'medical':
+            return { unit: 'AMB-001', label: 'Ambulance Service', status: 'assigned' };
+        case 'crime':
+            return { unit: 'POL-001', label: 'Police Service', status: 'assigned' };
+        case 'flood':
+            return { unit: 'NADMO-001', label: 'NADMO Disaster Response', status: 'assigned' };
+        default:
+            return { unit: 'COORD-001', label: 'Coordinator Review', status: 'assigned' };
+    }
 }
 
 function renderCoordinatorStats() {
@@ -555,7 +677,10 @@ function renderCoordinatorIncidentTable() {
                     </span>
                 </td>
                 <td class="py-3 px-4">${incident.assignedUnit || 'Unassigned'}</td>
-                <td class="py-3 px-4">
+                <td class="py-3 px-4 space-x-2">
+                    <button onclick="assignIncidentToService('${incident.id}')" class="text-sm px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
+                        Route
+                    </button>
                     <button onclick="editIncident('${incident.id}')" class="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
                         Edit
                     </button>
@@ -577,70 +702,204 @@ function renderCoordinatorRecentAlerts() {
 }
 
 function renderCoordinatorCharts() {
-    // Incidents by Type Chart
-    const incidentChart = document.getElementById('incidentChart');
-    if (incidentChart) {
-        const types = {};
-        incidents.forEach(i => {
-            types[i.type] = (types[i.type] || 0) + 1;
-        });
-        
-        new Chart(incidentChart, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(types).map(t => t.toUpperCase()),
-                datasets: [{
-                    data: Object.values(types),
-                    backgroundColor: [
-                        '#dc2626',
-                        '#ea580c',
-                        '#f59e0b',
-                        '#10b981',
-                        '#3b82f6',
-                        '#8b5cf6'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom' }
+    const types = {};
+    incidents.forEach(i => {
+        types[i.type] = (types[i.type] || 0) + 1;
+    });
+
+    const typeLabels = Object.keys(types).map(t => t.toUpperCase());
+    const typeData = Object.values(types);
+    const incidentElement = document.getElementById('incidentChart');
+
+    if (incidentElement) {
+        if (incidentChartInstance) {
+            incidentChartInstance.data.labels = typeLabels;
+            incidentChartInstance.data.datasets[0].data = typeData;
+            incidentChartInstance.update();
+        } else {
+            incidentChartInstance = new Chart(incidentElement, {
+                type: 'doughnut',
+                data: {
+                    labels: typeLabels,
+                    datasets: [{
+                        data: typeData,
+                        backgroundColor: [
+                            '#dc2626',
+                            '#ea580c',
+                            '#f59e0b',
+                            '#10b981',
+                            '#3b82f6',
+                            '#8b5cf6'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
                 }
-            }
-        });
+            });
+        }
     }
     
-    // Response Times Chart
-    const responseChart = document.getElementById('responseChart');
-    if (responseChart) {
-        const data = [8.2, 7.5, 9.1, 6.8, 10.2, 8.7, 9.3].map((_, i) => {
-            return { label: `Day ${i + 1}`, time: 5 + Math.random() * 8 };
-        });
-        
-        new Chart(responseChart, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.label),
-                datasets: [{
-                    label: 'Avg Response Time (minutes)',
-                    data: data.map(d => d.time),
-                    borderColor: '#dc2626',
-                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { display: false }
+    const responseData = [8.2, 7.5, 9.1, 6.8, 10.2, 8.7, 9.3].map((_, i) => ({
+        label: `Day ${i + 1}`,
+        time: 5 + Math.random() * 8
+    }));
+    const responseElement = document.getElementById('responseChart');
+
+    if (responseElement) {
+        if (responseChartInstance) {
+            responseChartInstance.data.labels = responseData.map(d => d.label);
+            responseChartInstance.data.datasets[0].data = responseData.map(d => d.time);
+            responseChartInstance.update();
+        } else {
+            responseChartInstance = new Chart(responseElement, {
+                type: 'line',
+                data: {
+                    labels: responseData.map(d => d.label),
+                    datasets: [{
+                        label: 'Avg Response Time (minutes)',
+                        data: responseData.map(d => d.time),
+                        borderColor: '#dc2626',
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
                 },
-                scales: {
-                    y: { beginAtZero: true, max: 15 }
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 15 }
+                    }
                 }
+            });
+        }
+    }
+
+    renderCoordinatorForecastChart();
+}
+
+function renderCoordinatorForecastChart() {
+    const forecastData = getPredictedIncidentDemand(7);
+    const canvas = document.getElementById('forecastChart');
+    if (!canvas) return;
+
+    if (forecastChartInstance) {
+        forecastChartInstance.data.labels = forecastData.map(item => item.day);
+        forecastChartInstance.data.datasets[0].data = forecastData.map(item => item.value);
+        forecastChartInstance.update();
+        return;
+    }
+
+    forecastChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: forecastData.map(item => item.day),
+            datasets: [{
+                label: 'Predicted Incident Volume',
+                data: forecastData.map(item => item.value),
+                backgroundColor: '#2563eb'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, max: Math.max(...forecastData.map(item => item.value)) + 2 }
             }
+        }
+    });
+}
+
+function renderCoordinatorAIPanels() {
+    const latest = incidents[incidents.length - 1];
+    const aiContainer = document.getElementById('aiIncidentClassifier');
+    const allocationContainer = document.getElementById('aiAllocationInsight');
+
+    if (latest && aiContainer) {
+        const prediction = classifyIncident(latest.description || latest.type);
+        aiContainer.innerHTML = `
+            <p><strong>Incident:</strong> ${latest.id}</p>
+            <p><strong>Suggested Type:</strong> ${prediction.type.toUpperCase()} (${prediction.confidence}%)</p>
+            <p><strong>Tags:</strong> ${prediction.tags.join(', ') || 'none'}</p>
+        `;
+    }
+
+    if (allocationContainer && latest) {
+        const recommendation = recommendResourceAllocation(latest);
+        allocationContainer.innerHTML = `
+            <p><strong>Primary Unit:</strong> ${recommendation.unit}</p>
+            <p><strong>Reason:</strong> ${recommendation.reason}</p>
+        `;
+    }
+}
+
+function getPredictedIncidentDemand(days) {
+    const counts = incidents.reduce((map, incident) => {
+        map[incident.type] = (map[incident.type] || 0) + 1;
+        return map;
+    }, {});
+
+    const totalIncidents = incidents.length || 1;
+    const base = Math.max(2, Math.round(totalIncidents / 3));
+    const demand = [];
+
+    for (let i = 1; i <= days; i++) {
+        const trend = base + Math.round(Math.sin(i / 2) * 2) + Math.floor(Math.random() * 3);
+        demand.push({
+            day: `Day ${i}`,
+            value: Math.max(1, trend)
         });
     }
+
+    return demand;
+}
+
+function classifyIncident(text) {
+    const lower = text.toLowerCase();
+    const mapping = [
+        { type: 'fire', keywords: ['fire', 'smoke', 'flames', 'burn'] },
+        { type: 'medical', keywords: ['injury', 'medical', 'unconscious', 'bleeding', 'medical'] },
+        { type: 'accident', keywords: ['accident', 'collision', 'crash', 'vehicle'] },
+        { type: 'crime', keywords: ['robbery', 'theft', 'assault', 'shooting'] },
+        { type: 'flood', keywords: ['flood', 'water', 'river', 'storm'] }
+    ];
+
+    let best = { type: 'other', score: 0, tags: [] };
+
+    mapping.forEach(item => {
+        let score = 0;
+        item.keywords.forEach(keyword => {
+            if (lower.includes(keyword)) {
+                score += 1;
+                best.tags.push(keyword);
+            }
+        });
+        if (score > best.score) {
+            best = { type: item.type, score, tags: item.keywords.filter(keyword => lower.includes(keyword)) };
+        }
+    });
+
+    if (best.score === 0) {
+        return { type: 'other', confidence: 65, tags: ['review'] };
+    }
+
+    return { type: best.type, confidence: Math.min(95, 65 + best.score * 10), tags: best.tags };
+}
+
+function recommendResourceAllocation(incident) {
+    const route = getServiceRoute(incident.type);
+    return {
+        unit: route.unit,
+        reason: `Selected based on incident type ${incident.type.toUpperCase()} and severity ${incident.priority.toUpperCase()}`
+    };
 }
 
 function handleAlertBroadcast(e) {
@@ -769,10 +1028,160 @@ function logout() {
     }
 }
 
-// ===== OFFLINE SUPPORT =====
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {
-        console.log('Service Worker registration failed');
+function monitorConnectionStatus() {
+    setConnectionIndicator(navigator.onLine);
+}
+
+function setConnectionIndicator(isOnline) {
+    const statusDot = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('connectionText');
+    if (!statusDot || !statusText) return;
+
+    statusDot.className = `w-3 h-3 rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-500'}`;
+    statusText.textContent = isOnline ? 'Online' : 'Offline';
+}
+
+async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+
+    try {
+        swRegistration = await navigator.serviceWorker.register('sw.js');
+        console.log('Service Worker registered:', swRegistration.scope);
+
+        const ready = await navigator.serviceWorker.ready;
+        swRegistration = ready;
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data?.type === 'push-received') {
+                displayLocalNotification(event.data.title, event.data.options);
+            }
+        });
+    } catch (error) {
+        console.warn('Service Worker registration failed:', error);
+    }
+}
+
+async function subscribeToPushNotifications() {
+    if (!('Notification' in window)) {
+        showError('Push notifications are not supported by this browser.');
+        return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+        showError('Push notification permission denied.');
+        return;
+    }
+
+    document.getElementById('notificationStatusText').textContent = 'Push notifications enabled locally.';
+    showSuccess('Push Enabled', 'Local push notifications are now enabled.');
+}
+
+function displayLocalNotification(title, options = {}) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    new Notification(title, options);
+}
+
+function startResponderLocationTracking() {
+    if (!navigator.geolocation) {
+        showError('Geolocation is not available in this browser.');
+        return;
+    }
+
+    if (gpsWatchId !== null) {
+        showSuccess('Tracking', 'GPS tracking is already active.');
+        return;
+    }
+
+    gpsWatchId = navigator.geolocation.watchPosition(position => {
+        const { latitude, longitude } = position.coords;
+        currentUser.location = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        updateResponderLocationUI();
+        document.getElementById('stopGpsTrackingBtn')?.classList.remove('hidden');
+        showSuccess('GPS Tracking', 'Responder location is now being tracked.');
+    }, error => {
+        showError('GPS Error: ' + error.message);
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
+}
+
+function stopResponderLocationTracking() {
+    if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+        currentUser.location = null;
+        updateResponderLocationUI();
+        document.getElementById('stopGpsTrackingBtn')?.classList.add('hidden');
+        showSuccess('GPS Stopped', 'Responder location tracking has stopped.');
+    }
+}
+
+function updateResponderLocationUI() {
+    const locationText = document.getElementById('respCurrentLocation');
+    if (!locationText) return;
+    locationText.textContent = currentUser.location || 'Not tracking';
+}
+
+function openDb() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('NkwalinkDB', 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = event => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('pendingReports')) {
+                db.createObjectStore('pendingReports', { keyPath: 'id' });
+            }
+        };
+    });
+}
+
+async function savePendingReport(report) {
+    const db = await openDb();
+    const tx = db.transaction('pendingReports', 'readwrite');
+    tx.objectStore('pendingReports').put(report);
+    return tx.complete || new Promise((resolve, reject) => {
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+    });
+}
+
+async function syncOfflineReportsIfOnline() {
+    if (!navigator.onLine) return;
+    try {
+        const db = await openDb();
+        const tx = db.transaction('pendingReports', 'readonly');
+        const store = tx.objectStore('pendingReports');
+        const allReports = await new Promise((resolve, reject) => {
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+
+        for (const report of allReports) {
+            try {
+                await fetch('/api/reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(report)
+                });
+                const deleteTx = db.transaction('pendingReports', 'readwrite');
+                deleteTx.objectStore('pendingReports').delete(report.id);
+            } catch (error) {
+                console.warn('Offline report sync failed for', report.id, error);
+            }
+        }
+    } catch (error) {
+        console.warn('Sync offline reports failed:', error);
+    }
+}
+
+function enqueueReportSync() {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.ready) return;
+    navigator.serviceWorker.ready.then(registration => {
+        if (registration.sync) {
+            registration.sync.register('sync-reports').catch(() => {
+                console.warn('Background sync registration failed.');
+            });
+        }
     });
 }
 

@@ -37,47 +37,51 @@ self.addEventListener('activate', event => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', event => {
-  // Skip non-GET requests
+  const requestUrl = new URL(event.request.url);
+
+  if (event.request.method === 'POST' && requestUrl.pathname.endsWith('/api/reports')) {
+    event.respondWith(
+      fetch(event.request.clone())
+        .then(response => response)
+        .catch(async () => {
+          const body = await event.request.clone().json();
+          await saveReportToIndexedDB(body);
+          return new Response(JSON.stringify({ success: false, offlineQueued: true }), {
+            status: 202,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        })
+    );
+    return;
+  }
+
   if (event.request.method !== 'GET') {
     return;
   }
 
-  // Skip cross-origin requests
-  if (new URL(event.request.url).origin !== location.origin) {
+  if (requestUrl.origin !== location.origin) {
     return;
   }
 
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        // Return cached response if available
         if (response) {
           return response;
         }
 
         return fetch(event.request)
           .then(response => {
-            // Don't cache non-successful responses
             if (!response || response.status !== 200) {
               return response;
             }
 
-            // Clone the response
             const responseToCache = response.clone();
-
-            // Cache successful responses
             caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
+              .then(cache => cache.put(event.request, responseToCache));
             return response;
           })
-          .catch(() => {
-            // Return offline page or cached response
-            return caches.match(event.request)
-              .then(response => response || new Response('Offline - Data cached locally'));
-          });
+          .catch(() => caches.match(event.request).then(response => response || new Response('Offline - Data cached locally')));
       })
   );
 });
@@ -88,6 +92,44 @@ self.addEventListener('sync', event => {
     event.waitUntil(syncReports());
   }
 });
+
+self.addEventListener('push', event => {
+  const data = event.data?.json() || { title: 'Nkwalink Alert', body: 'New emergency notification received.' };
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      data: data
+    })
+  );
+});
+
+async function saveReportToIndexedDB(report) {
+  try {
+    const db = await openDb();
+    const tx = db.transaction('pendingReports', 'readwrite');
+    tx.objectStore('pendingReports').put(report);
+    return tx.complete || new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+  } catch (error) {
+    console.error('ServiceWorker DB save failed:', error);
+  }
+}
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('NkwalinkDB', 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('pendingReports')) {
+        db.createObjectStore('pendingReports', { keyPath: 'id' });
+      }
+    };
+  });
+}
 
 async function syncReports() {
   try {
