@@ -81,6 +81,14 @@ let systemIntegrations = {
     broadcast: false
 };
 
+let coordinatorFilters = {
+    status: 'all',
+    priority: 'all',
+    search: ''
+};
+
+let coordinatorAssignments = {};
+
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
@@ -94,6 +102,7 @@ function initializeDashboard() {
     monitorConnectionStatus();
     registerServiceWorker();
     refreshOfflineQueueStatus();
+    checkMockServerHealth();
 }
 
 function setupEventListeners() {
@@ -136,11 +145,6 @@ function setupEventListeners() {
     document.getElementById('useGPSBtn')?.addEventListener('click', getUserLocation);
     document.getElementById('citizenVoiceBtn')?.addEventListener('click', startVoiceInput);
     document.getElementById('citizenMediaBtn')?.addEventListener('click', startMediaCapture);
-    document.getElementById('refreshCitizenAlerts')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        renderCitizenAlerts();
-        showToast('Alerts refreshed', 'success');
-    });
 
     // Responder role events
     document.getElementById('responderStatusSelect')?.addEventListener('change', (e) => updateResponderStatus(e.target.value));
@@ -156,6 +160,30 @@ function setupEventListeners() {
     document.getElementById('refreshAnalytics')?.addEventListener('click', () => {
         renderCoordinatorDashboard();
         showToast('Analytics refreshed', 'success');
+    });
+    document.getElementById('coordinatorStatusFilter')?.addEventListener('change', (e) => {
+        coordinatorFilters.status = e.target.value;
+        renderCoordinatorIncidentTable();
+    });
+    document.getElementById('coordinatorPriorityFilter')?.addEventListener('change', (e) => {
+        coordinatorFilters.priority = e.target.value;
+        renderCoordinatorIncidentTable();
+    });
+    document.getElementById('coordinatorSearchFilter')?.addEventListener('input', (e) => {
+        coordinatorFilters.search = e.target.value.trim();
+        renderCoordinatorIncidentTable();
+    });
+    document.getElementById('coordinatorClearFilters')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        coordinatorFilters = { status: 'all', priority: 'all', search: '' };
+        document.getElementById('coordinatorStatusFilter').value = 'all';
+        document.getElementById('coordinatorPriorityFilter').value = 'all';
+        document.getElementById('coordinatorSearchFilter').value = '';
+        renderCoordinatorIncidentTable();
+    });
+    document.getElementById('coordinatorBulkAssign')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        bulkAssignIncidents();
     });
 
     // Modal close buttons
@@ -184,6 +212,19 @@ function setupEventListeners() {
     document.getElementById('incidentDetailSave')?.addEventListener('click', () => {
         if (currentIncidentDetailId) {
             saveIncidentChanges(currentIncidentDetailId);
+        }
+    });
+
+    const incidentModal = document.getElementById('incidentDetailModal');
+    incidentModal?.addEventListener('click', event => {
+        if (event.target === incidentModal) {
+            closeIncidentDetailModal();
+        }
+    });
+
+    window.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            closeIncidentDetailModal();
         }
     });
 }
@@ -328,7 +369,6 @@ function renderRoleHint(role) {
 
 // ===== CITIZEN DASHBOARD =====
 function renderCitizenDashboard() {
-    renderCitizenAlerts();
     renderRoleHint('citizen');
 }
 
@@ -614,6 +654,7 @@ function renderCoordinatorDashboard() {
     renderCoordinatorIntegrationStatus();
     renderCoordinatorHeatmap();
     renderCoordinatorResources();
+    renderCoordinatorFilters();
     renderCoordinatorIncidentTable();
     renderCoordinatorRecentAlerts();
     renderCoordinatorCharts();
@@ -710,24 +751,71 @@ async function attemptIntegration(type, retries = 3) {
     }
 }
 
-function assignIncidentToService(incidentId) {
+function assignIncidentToService(incidentId, unitId, suppressToast = false) {
     const incident = incidents.find(i => i.id === incidentId);
     if (!incident) return;
 
     const route = getServiceRoute(incident.type);
+    const chosenUnit = unitId || incident.assignedUnit || route.unit;
     const previousUnit = incident.assignedUnit;
-    incident.assignedUnit = route.unit;
-    incident.status = route.status;
-    markResourceStatus(route.unit, 'busy');
 
-    if (previousUnit && previousUnit !== route.unit) {
+    incident.assignedUnit = chosenUnit;
+    if (incident.status !== 'resolved') {
+        incident.status = route.status;
+    }
+
+    if (chosenUnit) {
+        markResourceStatus(chosenUnit, 'busy');
+    }
+
+    if (previousUnit && previousUnit !== chosenUnit) {
         markResourceStatus(previousUnit, 'available');
     }
 
+    delete coordinatorAssignments[incidentId];
     updateHeaderInfo();
     renderCoordinatorDashboard();
     renderResponderDashboard();
-    showSuccess('Incident Routed', `Incident ${incidentId} routed to ${route.label}.`);
+    if (!suppressToast) {
+        showSuccess('Incident Routed', `Incident ${incidentId} assigned to ${chosenUnit}.`);
+    }
+}
+
+function bulkAssignIncidents() {
+    const unassignedIncidents = getFilteredCoordinatorIncidents().filter(i => !i.assignedUnit && i.status !== 'resolved');
+    if (unassignedIncidents.length === 0) {
+        showError('There are no unassigned active incidents in the current view to bulk assign.');
+        return;
+    }
+
+    let assignedCount = 0;
+    let noResourceCount = 0;
+
+    unassignedIncidents.forEach(incident => {
+        const available = selectAvailableResourceForIncident(incident.type);
+        if (available) {
+            assignIncidentToService(incident.id, available.id, true);
+            assignedCount += 1;
+        } else {
+            noResourceCount += 1;
+        }
+    });
+
+    if (assignedCount > 0) {
+        showSuccess('Bulk Assign Complete', `${assignedCount} incident${assignedCount === 1 ? '' : 's'} assigned.`);
+    }
+    if (noResourceCount > 0) {
+        showToast(`${noResourceCount} incident${noResourceCount === 1 ? '' : 's'} could not be assigned due to limited available resources.`, 'warning');
+    }
+}
+
+function setCoordinatorAssignment(incidentId, unitId) {
+    if (!incidentId) return;
+    if (unitId === '') {
+        delete coordinatorAssignments[incidentId];
+    } else {
+        coordinatorAssignments[incidentId] = unitId;
+    }
 }
 
 function getServiceRoute(type) {
@@ -780,7 +868,7 @@ function renderCoordinatorStats() {
     const avgResponse = calculateAverageResponse();
     const busyUnits = resources.filter(r => r.status === 'busy').length;
     const availableUnits = resources.filter(r => r.status === 'available').length;
-    const pendingAssignments = incidents.filter(i => !i.assignedUnit).length;
+    const pendingAssignments = incidents.filter(i => !i.assignedUnit && i.status !== 'resolved').length;
     const capacity = Math.min(100, Math.round((busyUnits / Math.max(resources.length, 1)) * 100));
     
     document.getElementById('coordTotalIncidents').textContent = total;
@@ -788,7 +876,6 @@ function renderCoordinatorStats() {
     document.getElementById('coordActiveUnits').textContent = availableUnits + ' / ' + resources.length;
     document.getElementById('coordCapacityUsage').textContent = capacity + '%';
     document.getElementById('coordPendingAssignments')?.textContent = pendingAssignments;
-    document.getElementById('coordResourceUsage')?.textContent = `${capacity}%`;
 }
 
 function renderCoordinatorHeatmap() {
@@ -854,14 +941,60 @@ function renderCoordinatorResources() {
     `).join('');
 }
 
+function getFilteredCoordinatorIncidents() {
+    return incidents
+        .filter(i => coordinatorFilters.status === 'all' || i.status === coordinatorFilters.status)
+        .filter(i => coordinatorFilters.priority === 'all' || i.priority === coordinatorFilters.priority)
+        .filter(i => {
+            if (!coordinatorFilters.search) return true;
+            const search = coordinatorFilters.search.toLowerCase();
+            return i.id.toLowerCase().includes(search) ||
+                i.location.toLowerCase().includes(search) ||
+                i.type.toLowerCase().includes(search) ||
+                i.description.toLowerCase().includes(search) ||
+                i.reporter.name.toLowerCase().includes(search);
+        })
+        .sort((a, b) => b.time - a.time);
+}
+
 function renderCoordinatorIncidentTable() {
     const container = document.getElementById('coordinatorIncidentTable');
     if (!container) return;
 
-    const tableRows = incidents
-        .filter(i => ['reported', 'en-route', 'assigned'].includes(i.status))
-        .sort((a, b) => b.time - a.time)
-        .map(incident => `
+    const filteredIncidents = getFilteredCoordinatorIncidents();
+
+    const filteredUnassigned = filteredIncidents.filter(i => !i.assignedUnit && i.status !== 'resolved').length;
+    const summaryEl = document.getElementById('coordinatorFilterSummary');
+    if (summaryEl) {
+        const total = incidents.length;
+        const filtered = filteredIncidents.length;
+        const filtersActive = coordinatorFilters.status !== 'all' || coordinatorFilters.priority !== 'all' || coordinatorFilters.search !== '';
+        summaryEl.textContent = filtersActive
+            ? `Showing ${filtered} of ${total} incidents matching filter criteria. ${filteredUnassigned} are unassigned.`
+            : `Showing all ${total} incidents. ${filteredUnassigned} remain unassigned.`;
+    }
+
+    const tableRows = filteredIncidents.map(incident => {
+        const availableUnits = resources
+            .filter(r => r.status === 'available' || r.id === incident.assignedUnit)
+            .map(r => `<option value="${r.id}" ${incident.assignedUnit === r.id ? 'selected' : ''}>${r.id} (${r.type.replace('_', ' ')})</option>`)
+            .join('');
+
+        const selectedUnit = coordinatorAssignments[incident.id] || incident.assignedUnit || '';
+        const isAssignable = selectedUnit || availableUnits.length > 0;
+        const assignLabel = selectedUnit ? 'Assign' : 'Auto Assign';
+
+        const quickAssign = `<div class="flex gap-2 items-center">
+                <select onchange="setCoordinatorAssignment('${incident.id}', this.value)" class="p-2 border border-gray-300 rounded-lg text-xs">
+                    <option value="">Select unit</option>
+                    ${availableUnits}
+                </select>
+                <button onclick="event.stopPropagation(); assignIncidentToService('${incident.id}', coordinatorAssignments['${incident.id}'])" class="text-xs px-2 py-1 ${isAssignable ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-500 cursor-not-allowed'} rounded transition-colors" ${isAssignable ? '' : 'disabled'}>
+                    ${assignLabel}
+                </button>
+            </div>`;
+
+        return `
             <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="showIncidentDetails('${incident.id}')">
                 <td class="py-3 px-4 font-mono text-sm">${incident.id}</td>
                 <td class="py-3 px-4">${getIncidentEmoji(incident.type)} ${incident.type.toUpperCase()}</td>
@@ -870,23 +1003,32 @@ function renderCoordinatorIncidentTable() {
                     <span class="status-badge status-${incident.priority}">${getPriorityEmoji(incident.priority)} ${incident.priority}</span>
                 </td>
                 <td class="py-3 px-4">
-                    <span class="status-badge status-${incident.status === 'reported' ? 'critical' : incident.status === 'en-route' ? 'medium' : 'low'}">
+                    <span class="status-badge status-${incident.status === 'reported' ? 'critical' : incident.status === 'en-route' ? 'medium' : incident.status === 'assigned' ? 'low' : 'high'}">
                         ${incident.status.toUpperCase()}
                     </span>
                 </td>
                 <td class="py-3 px-4">${incident.assignedUnit || 'Unassigned'}</td>
-                <td class="py-3 px-4 space-x-2">
-                    <button onclick="event.stopPropagation(); assignIncidentToService('${incident.id}')" class="text-sm px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
-                        Route
-                    </button>
+                <td class="py-3 px-4 space-y-2">
+                    ${quickAssign}
                     <button onclick="event.stopPropagation(); editIncident('${incident.id}')" class="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
                         Edit
                     </button>
                 </td>
             </tr>
-        `).join('');
+        `;
+    }).join('');
 
-    container.innerHTML = tableRows || '<tr><td colspan="7" class="py-6 px-4 text-center text-gray-500">No active incidents. Await reports or refresh the dashboard.</td></tr>';
+    container.innerHTML = tableRows || '<tr><td colspan="7" class="py-6 px-4 text-center text-gray-500">No incidents match the filters. Adjust status, priority, or search terms.</td></tr>';
+
+    const summaryEl = document.getElementById('coordinatorFilterSummary');
+    if (summaryEl) {
+        const total = incidents.length;
+        const filtered = filteredIncidents.length;
+        const filtersActive = coordinatorFilters.status !== 'all' || coordinatorFilters.priority !== 'all' || coordinatorFilters.search !== '';
+        summaryEl.textContent = filtersActive
+            ? `Showing ${filtered} of ${total} incidents matching the selected filters.`
+            : `Showing all ${total} incidents.`;
+    }
 }
 
 function renderCoordinatorRecentAlerts() {
@@ -1016,6 +1158,16 @@ function renderCoordinatorForecastChart() {
             }
         }
     });
+}
+
+function renderCoordinatorFilters() {
+    const statusControl = document.getElementById('coordinatorStatusFilter');
+    const priorityControl = document.getElementById('coordinatorPriorityFilter');
+    const searchControl = document.getElementById('coordinatorSearchFilter');
+
+    if (statusControl) statusControl.value = coordinatorFilters.status;
+    if (priorityControl) priorityControl.value = coordinatorFilters.priority;
+    if (searchControl) searchControl.value = coordinatorFilters.search;
 }
 
 function renderCoordinatorAIPanels() {
@@ -1408,6 +1560,28 @@ function logout() {
 
 function monitorConnectionStatus() {
     setConnectionIndicator(navigator.onLine);
+    if (navigator.onLine) {
+        checkMockServerHealth();
+    } else {
+        setMockApiIndicator('Offline', false);
+    }
+}
+
+async function checkMockServerHealth() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/health`, { cache: 'no-store' });
+        const status = response.ok ? 'Healthy' : 'Degraded';
+        setMockApiIndicator(status, response.ok);
+    } catch (error) {
+        setMockApiIndicator('Unavailable', false);
+    }
+}
+
+function setMockApiIndicator(label, healthy) {
+    const statusEl = document.getElementById('mockApiStatus');
+    if (!statusEl) return;
+    statusEl.textContent = label;
+    statusEl.className = `px-2 py-1 rounded-full text-xs ${healthy ? 'bg-green-500' : 'bg-gray-500'}`;
 }
 
 async function getPendingReportCount() {
@@ -1425,6 +1599,32 @@ async function getPendingReportCount() {
         console.warn('Unable to read pending report count:', error);
         return 0;
     }
+}
+
+async function getPendingReportIds() {
+    try {
+        const db = await openDb();
+        const tx = db.transaction('pendingReports', 'readonly');
+        const store = tx.objectStore('pendingReports');
+        return await new Promise((resolve, reject) => {
+            const req = store.getAllKeys();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (error) {
+        console.warn('Unable to read queued report IDs:', error);
+        return [];
+    }
+}
+
+async function displayPendingSyncDetails() {
+    const pendingIds = await getPendingReportIds();
+    if (pendingIds.length === 0) {
+        showSuccess('Pending Sync', 'No reports are currently queued for sync.');
+        return;
+    }
+
+    showSuccess('Pending Sync Reports', `Queued report IDs:\n${pendingIds.slice(0, 10).join('\n')}${pendingIds.length > 10 ? '\n...and more' : ''}`);
 }
 
 async function refreshOfflineQueueStatus() {
