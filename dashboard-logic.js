@@ -656,7 +656,6 @@ function renderCoordinatorDashboard() {
     renderCoordinatorResources();
     renderCoordinatorFilters();
     renderCoordinatorIncidentTable();
-    renderCoordinatorRecentAlerts();
     renderCoordinatorCharts();
     renderCoordinatorAIPanels();
     renderRoleHint('coordinator');
@@ -1029,18 +1028,6 @@ function renderCoordinatorIncidentTable() {
             ? `Showing ${filtered} of ${total} incidents matching the selected filters.`
             : `Showing all ${total} incidents.`;
     }
-}
-
-function renderCoordinatorRecentAlerts() {
-    const container = document.getElementById('coordinatorRecentAlerts');
-    if (!container) return;
-    
-    container.innerHTML = alerts.slice(-5).map(alert => `
-        <div class="alert-broadcast ${alert.type === 'urgent' ? 'alert-urgent' : alert.type === 'warning' ? 'alert-warning' : 'alert-info'} text-sm">
-            <p class="font-semibold mb-1">${alert.message}</p>
-            <p class="text-xs opacity-80">${formatTime(alert.timestamp)} • ${alert.channels.join(', ')}</p>
-        </div>
-    `).join('') || '<p class="text-gray-500 text-sm">No recent alerts</p>';
 }
 
 function renderCoordinatorCharts() {
