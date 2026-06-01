@@ -253,8 +253,17 @@
                         <option value="ee">Ewe</option>
                         <option value="ha">Hausa</option>
                     </select>
+
+                    <button id="helpBtn" type="button" class="hidden sm:inline-flex items-center justify-center rounded-lg bg-white text-red-700 px-3 py-2 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-red-50 transition-colors">
+                        Help
+                    </button>
                     
                     <!-- User Menu -->
+                    <div class="hidden sm:flex items-center gap-2">
+                        <button type="button" onclick="switchRole('citizen')" class="px-3 py-2 bg-white text-red-700 rounded-lg text-xs uppercase tracking-[0.18em] font-semibold hover:bg-red-50 transition-colors">Citizen</button>
+                        <button type="button" onclick="switchRole('responder')" class="px-3 py-2 bg-white text-red-700 rounded-lg text-xs uppercase tracking-[0.18em] font-semibold hover:bg-red-50 transition-colors">Responder</button>
+                        <button type="button" onclick="switchRole('coordinator')" class="px-3 py-2 bg-white text-red-700 rounded-lg text-xs uppercase tracking-[0.18em] font-semibold hover:bg-red-50 transition-colors">Coordinator</button>
+                    </div>
                     <button id="userMenuBtn" class="flex items-center space-x-2 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg transition-colors">
                         <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -284,6 +293,10 @@
                     <span class="text-red-100">Alerts</span>
                     <p class="text-lg font-bold emergency-pulse" id="headerAlerts">0</p>
                 </div>
+            </div>
+            <div id="roleHint" class="mt-4 rounded-3xl bg-white/90 border border-white/60 p-4 shadow-sm text-sm text-gray-700 max-w-7xl mx-auto">
+                <p class="font-semibold text-gray-900">Welcome to Nkwalink.</p>
+                <p>Use the role buttons above to switch between Citizen, Responder, and Coordinator dashboards, then follow the on-screen prompts.</p>
             </div>
         </div>
     </header>
@@ -681,6 +694,32 @@
             <button id="closeSuccessBtn" class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold">
                 Close
             </button>
+        </div>
+    </div>
+
+    <div id="notificationToast" class="hidden fixed bottom-6 right-6 z-50 max-w-sm rounded-xl p-4 text-sm font-medium shadow-xl ring-1 ring-black/10" aria-live="polite"></div>
+
+    <div id="tourModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-red-600">Quick Start Guide</p>
+                    <h2 class="text-2xl font-bold text-gray-900 mt-2" id="tourTitle">Welcome to Nkwalink</h2>
+                </div>
+                <button id="closeTourBtn" class="text-gray-400 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="mt-6 space-y-4 text-sm text-gray-700" id="tourContent"></div>
+            <div class="mt-6 flex items-center justify-between">
+                <button id="tourPrevBtn" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">Previous</button>
+                <div class="flex gap-2">
+                    <button id="tourNextBtn" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">Next</button>
+                    <button id="tourEndBtn" class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">End Tour</button>
+                </div>
+            </div>
         </div>
     </div>
 

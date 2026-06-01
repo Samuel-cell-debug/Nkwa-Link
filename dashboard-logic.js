@@ -98,48 +98,69 @@ function setupEventListeners() {
         setLanguage(e.target.value);
     });
 
-    document.getElementById('enablePushBtn')?.addEventListener('click', () => {
-        subscribeToPushNotifications();
-    });
+    // Help tour
+    document.getElementById('helpBtn')?.addEventListener('click', showTour);
+    document.getElementById('closeTourBtn')?.addEventListener('click', closeTour);
+    document.getElementById('tourPrevBtn')?.addEventListener('click', previousTourStep);
+    document.getElementById('tourNextBtn')?.addEventListener('click', nextTourStep);
+    document.getElementById('tourEndBtn')?.addEventListener('click', closeTour);
 
-    document.getElementById('startGpsTrackingBtn')?.addEventListener('click', () => {
-        startResponderLocationTracking();
-    });
+    // Push notifications
+    document.getElementById('enablePushBtn')?.addEventListener('click', subscribeToPushNotifications);
 
-    document.getElementById('stopGpsTrackingBtn')?.addEventListener('click', () => {
-        stopResponderLocationTracking();
-    });
+    // GPS controls
+    document.getElementById('startGpsTrackingBtn')?.addEventListener('click', startResponderLocationTracking);
+    document.getElementById('stopGpsTrackingBtn')?.addEventListener('click', stopResponderLocationTracking);
 
+    // Network status
     window.addEventListener('online', () => {
         setConnectionIndicator(true);
         syncOfflineReportsIfOnline();
+        showToast('Connection restored. Syncing offline reports...', 'success');
     });
 
     window.addEventListener('offline', () => {
         setConnectionIndicator(false);
+        showToast('You are offline. Reports will be queued locally.', 'warning');
     });
 
     // User menu
     document.getElementById('userMenuBtn')?.addEventListener('click', showUserMenu);
+    document.addEventListener('click', (event) => {
+        const menu = document.querySelector('.user-menu');
+        const button = document.getElementById('userMenuBtn');
+        if (menu && button && !button.contains(event.target) && !menu.contains(event.target)) {
+            menu.remove();
+        }
+    });
 
-    
-    // User menu
-    document.getElementById('userMenuBtn').addEventListener('click', showUserMenu);
-    
     // Citizen role events
     document.getElementById('citizenReportForm')?.addEventListener('submit', handleCitizenReport);
     document.getElementById('useGPSBtn')?.addEventListener('click', getUserLocation);
     document.getElementById('citizenVoiceBtn')?.addEventListener('click', startVoiceInput);
     document.getElementById('citizenMediaBtn')?.addEventListener('click', startMediaCapture);
-    
+    document.getElementById('refreshCitizenAlerts')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        renderCitizenAlerts();
+        showToast('Alerts refreshed', 'success');
+    });
+
     // Responder role events
     document.getElementById('responderStatusSelect')?.addEventListener('change', (e) => updateResponderStatus(e.target.value));
     document.getElementById('responderSendChat')?.addEventListener('click', sendResponderMessage);
-    
+    document.getElementById('responderRefreshTable')?.addEventListener('click', () => {
+        renderResponderDashboard();
+        showToast('Responder queue refreshed', 'success');
+    });
+
     // Coordinator role events
     document.getElementById('alertBroadcastForm')?.addEventListener('submit', handleAlertBroadcast);
     document.getElementById('exportReportBtn')?.addEventListener('click', exportReport);
-    
+    document.getElementById('refreshAnalytics')?.addEventListener('click', () => {
+        renderCoordinatorDashboard();
+        showToast('Analytics refreshed', 'success');
+    });
+
     // Modal close buttons
     document.getElementById('closeSuccessBtn')?.addEventListener('click', () => {
         document.getElementById('successModal').classList.add('hidden');
@@ -223,6 +244,9 @@ function switchRole(role) {
         renderDashboard(role);
     }
     
+    renderRoleHint(role);
+    showToast(`Switched to ${role.charAt(0).toUpperCase() + role.slice(1)} mode`, 'success');
+
     // Close user menu
     const menu = document.querySelector('.user-menu');
     if (menu) menu.remove();
@@ -255,19 +279,107 @@ function renderDashboard(role) {
     }
 }
 
+let tourStepIndex = 0;
+const tourSteps = [
+    {
+        title: 'Citizen Reporting',
+        description: 'In Citizen mode, report emergencies quickly using the form. Use GPS for precise location and add details so responders can act fast.'
+    },
+    {
+        title: 'Responder Flow',
+        description: 'In Responder mode, see incoming incidents, update your status, and accept assignments to move into action.'
+    },
+    {
+        title: 'Coordinator Command',
+        description: 'In Coordinator mode, assign units, manage integrations, and broadcast alerts to keep everyone informed.'
+    }
+];
+
+function renderRoleHint(role) {
+    const hint = document.getElementById('roleHint');
+    if (!hint) return;
+
+    const messages = {
+        citizen: {
+            title: 'Citizen Mode',
+            description: 'Report an emergency quickly, share your location, and stay updated with alerts in your area.'
+        },
+        responder: {
+            title: 'Responder Mode',
+            description: 'Review active incidents, update your status, chat with command, and accept your next assignment.'
+        },
+        coordinator: {
+            title: 'Coordinator Mode',
+            description: 'Monitor active incidents, assign units, connect integrations, and broadcast alerts to the public.'
+        }
+    };
+
+    const selected = messages[role] || messages.citizen;
+    hint.innerHTML = `
+        <p class="font-semibold text-gray-900">${selected.title}</p>
+        <p class="mt-1 text-sm text-gray-600">${selected.description}</p>
+    `;
+}
+
+function showTour() {
+    tourStepIndex = 0;
+    renderTourStep();
+    document.getElementById('tourModal')?.classList.remove('hidden');
+}
+
+function closeTour() {
+    document.getElementById('tourModal')?.classList.add('hidden');
+}
+
+function renderTourStep() {
+    const step = tourSteps[tourStepIndex];
+    const title = document.getElementById('tourTitle');
+    const content = document.getElementById('tourContent');
+    const prevBtn = document.getElementById('tourPrevBtn');
+    const nextBtn = document.getElementById('tourNextBtn');
+
+    if (title) title.textContent = step.title;
+    if (content) content.innerHTML = `<p>${step.description}</p>`;
+    if (prevBtn) prevBtn.disabled = tourStepIndex === 0;
+    if (nextBtn) nextBtn.textContent = tourStepIndex === tourSteps.length - 1 ? 'Finish' : 'Next';
+}
+
+function nextTourStep() {
+    if (tourStepIndex < tourSteps.length - 1) {
+        tourStepIndex += 1;
+        renderTourStep();
+    } else {
+        closeTour();
+    }
+}
+
+function previousTourStep() {
+    if (tourStepIndex > 0) {
+        tourStepIndex -= 1;
+        renderTourStep();
+    }
+}
+
 // ===== CITIZEN DASHBOARD =====
 function renderCitizenDashboard() {
     renderCitizenAlerts();
+    renderRoleHint('citizen');
 }
 
 function renderCitizenAlerts() {
     const container = document.getElementById('citizenAlertsContainer');
     if (!container) return;
-    
-    container.innerHTML = incidents
+
+    const alertItems = incidents
         .filter(i => ['reported', 'en-route'].includes(i.status))
-        .sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority))
-        .map(incident => `
+        .sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority));
+
+    if (alertItems.length === 0) {
+        container.innerHTML = `<div class="rounded-xl border border-dashed border-gray-300 p-6 text-center text-gray-500">No active alerts in your area right now. Stay safe and report any emergencies immediately.</div>`;
+        return;
+    }
+
+    container.innerHTML = alertItems.map(incident => `
             <div class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4">
                 <div class="flex items-start justify-between">
                     <div>
@@ -289,20 +401,20 @@ function renderCitizenAlerts() {
         `).join('');
 }
 
-function handleCitizenReport(e) {
+async function handleCitizenReport(e) {
     e.preventDefault();
-    
+
     const type = document.getElementById('citizenEmergencyType').value;
     const priority = document.getElementById('citizenPriority').value;
     const location = document.getElementById('citizenLocation').value;
     const description = document.getElementById('citizenDescription').value;
     const phone = document.getElementById('citizenPhone').value;
-    
+
     if (!type || !location || !phone) {
         showError('Please fill in all required fields');
         return;
     }
-    
+
     const newIncident = {
         id: `INC-${Math.floor(Math.random() * 100000)}`,
         type,
@@ -326,10 +438,32 @@ function handleCitizenReport(e) {
             .catch(() => console.warn('Could not queue report for later sync'));
         showSuccess('Offline Report Queued', `Report ${newIncident.id} will sync when online`);
     } else {
-        showSuccess('Emergency Report Submitted', `Your report ID is: ${newIncident.id}`);
+        try {
+            await submitIncidentReport(newIncident);
+            showSuccess('Emergency Report Submitted', `Your report ID is: ${newIncident.id}`);
+        } catch (error) {
+            savePendingReport(newIncident)
+                .then(() => enqueueReportSync())
+                .catch(() => console.warn('Could not queue report for later sync'));
+            showError('Unable to send report immediately. It will retry when online.');
+        }
     }
 
     document.getElementById('citizenReportForm').reset();
+}
+
+async function submitIncidentReport(report) {
+    const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Report submission failed (${response.status})`);
+    }
+
+    return await response.json();
 }
 
 function getUserLocation() {
@@ -362,6 +496,7 @@ function renderResponderDashboard() {
     renderResponderTeamStatus();
     renderResponderResources();
     renderResponderMessages();
+    renderRoleHint('responder');
 }
 
 function renderResponderStats() {
@@ -369,86 +504,92 @@ function renderResponderStats() {
     const high = incidents.filter(i => i.priority === 'high' && ['reported', 'assigned'].includes(i.status)).length;
     const medium = incidents.filter(i => i.priority === 'medium' && ['reported', 'assigned'].includes(i.status)).length;
     const low = incidents.filter(i => i.priority === 'low' && ['reported', 'assigned'].includes(i.status)).length;
-    
+    const dispatched = resources.filter(r => r.status === 'busy').length;
+    const available = resources.filter(r => r.status === 'available').length;
+    const offline = resources.filter(r => r.status === 'offline').length;
+
     document.getElementById('respCriticalCount').textContent = critical;
     document.getElementById('respHighCount').textContent = high;
     document.getElementById('respMediumCount').textContent = medium;
     document.getElementById('respLowCount').textContent = low;
+    document.getElementById('unitDispatched')?.textContent = dispatched;
+    document.getElementById('unitBusy')?.textContent = dispatched;
+    document.getElementById('unitAvailable')?.textContent = available;
+    document.getElementById('unitOffline')?.textContent = offline;
+    document.getElementById('respTeamName')?.textContent = currentUser.team || 'Central Response';
+    document.getElementById('respLocationName')?.textContent = currentUser.location ? 'Current Area' : 'Not tracked';
 }
 
 function renderResponderIncidentQueue() {
     const container = document.getElementById('responderIncidentQueue');
     if (!container) return;
-    
-    container.innerHTML = incidents
+
+    const queue = incidents
         .filter(i => ['reported', 'assigned'].includes(i.status))
-        .sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority))
-        .map(incident => `
+        .sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority));
+
+    if (queue.length === 0) {
+        container.innerHTML = '<div class="rounded-3xl border border-dashed border-gray-300 p-6 text-center text-gray-500">No active incidents in the queue. Await new reports or refresh the incident feed.</div>';
+        return;
+    }
+
+    container.innerHTML = queue.map(incident => {
+        const alreadyAssigned = !!incident.assignedUnit;
+        return `
             <div class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4">
-                <div class="flex items-start justify-between">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div class="flex-1">
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="text-sm font-mono font-bold text-gray-600">${incident.id}</span>
-                            <span class="status-badge status-${incident.priority}">${getPriorityEmoji(incident.priority)}</span>
+                            <span class="status-badge status-${incident.priority}">${getPriorityEmoji(incident.priority)} ${incident.priority.toUpperCase()}</span>
                         </div>
-                        <h4 class="font-semibold text-gray-900 mt-1">${incident.location}</h4>
-                        <p class="text-sm text-gray-600">${incident.type.toUpperCase()}</p>
+                        <h4 class="font-semibold text-gray-900 mt-2">${incident.location}</h4>
+                        <p class="text-sm text-gray-600">${incident.type.toUpperCase()} • ${alreadyAssigned ? 'Assigned to ' + incident.assignedUnit : 'Awaiting assignment'}</p>
                         <p class="text-xs text-gray-500 mt-1">Reported: ${formatTime(incident.time)}</p>
                     </div>
-                    <button onclick="acceptIncident('${incident.id}')" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors">
-                        Accept
+                    <button onclick="acceptIncident('${incident.id}')" class="px-4 py-2 ${alreadyAssigned ? 'bg-slate-300 text-slate-700 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} rounded-lg text-sm font-semibold transition-colors" ${alreadyAssigned ? 'disabled' : ''}>
+                        ${alreadyAssigned ? 'Assigned' : 'Accept'}
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;
+    }).join('');
 }
 
 function renderResponderTeamStatus() {
     const container = document.getElementById('responderTeamStatusContainer');
     if (!container) return;
-    
-    container.innerHTML = `
-        <div class="space-y-2">
-            <div class="resource-status">
-                <div class="resource-indicator resource-active"></div>
-                <div>
-                    <p class="font-semibold text-gray-900">Officer John</p>
-                    <p class="text-xs text-gray-600">Available</p>
-                </div>
-            </div>
-            <div class="resource-status">
-                <div class="resource-indicator resource-busy"></div>
-                <div>
-                    <p class="font-semibold text-gray-900">Officer Mary</p>
-                    <p class="text-xs text-gray-600">On Assignment</p>
-                </div>
-            </div>
-            <div class="resource-status">
-                <div class="resource-indicator resource-active"></div>
-                <div>
-                    <p class="font-semibold text-gray-900">Officer Mike</p>
-                    <p class="text-xs text-gray-600">Available</p>
-                </div>
+
+    const teamResources = resources.slice(0, 5);
+    if (teamResources.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500">No team resource data available.</p>';
+        return;
+    }
+
+    container.innerHTML = teamResources.map(resource => `
+        <div class="resource-status">
+            <div class="resource-indicator ${resource.status === 'available' ? 'resource-active' : resource.status === 'busy' ? 'resource-busy' : 'resource-offline'}"></div>
+            <div>
+                <p class="font-semibold text-gray-900">${resource.id}</p>
+                <p class="text-xs text-gray-600">${resource.status === 'available' ? 'Available' : resource.status === 'busy' ? 'On Assignment' : 'Offline'}</p>
             </div>
         </div>
-    `;
+    `).join('');
 }
 
 function renderResponderResources() {
     const container = document.getElementById('responderResourcesContainer');
     if (!container) return;
-    
-    container.innerHTML = resources
-        .filter(r => r.status === 'available')
-        .map(resource => `
-            <div class="resource-status">
-                <div class="resource-indicator resource-active"></div>
-                <div>
-                    <p class="font-semibold text-gray-900 text-sm">${resource.id}</p>
-                    <p class="text-xs text-gray-600">${resource.location}</p>
-                </div>
+
+    container.innerHTML = resources.map(resource => `
+        <div class="resource-status">
+            <div class="resource-indicator ${resource.status === 'available' ? 'resource-active' : resource.status === 'busy' ? 'resource-busy' : 'resource-offline'}"></div>
+            <div>
+                <p class="font-semibold text-gray-900 text-sm">${resource.id}</p>
+                <p class="text-xs text-gray-600">${resource.location} • ${resource.status.toUpperCase()}</p>
             </div>
-        `).join('');
+        </div>
+    `).join('');
 }
 
 function renderResponderMessages() {
@@ -472,13 +613,37 @@ function updateResponderStatus(status) {
 
 function acceptIncident(incidentId) {
     const incident = incidents.find(i => i.id === incidentId);
-    if (incident) {
-        incident.status = 'assigned';
-        incident.assignedUnit = 'RESP-' + Math.floor(Math.random() * 1000);
-        updateHeaderInfo();
-        renderResponderDashboard();
-        showSuccess('Incident Accepted', `You have accepted incident ${incidentId}`);
+    if (!incident) return;
+
+    const resource = findAvailableResource(incident.type);
+    if (!resource) {
+        showError('No available responder units. Please wait for resources to free up.');
+        return;
     }
+
+    resource.status = 'busy';
+    incident.status = 'en-route';
+    incident.assignedUnit = resource.id;
+    updateHeaderInfo();
+    renderResponderDashboard();
+    renderCoordinatorDashboard();
+    showSuccess('Incident Accepted', `Incident ${incidentId} assigned to ${resource.id}`);
+}
+
+function findAvailableResource(type) {
+    const preferred = {
+        fire: 'fire_truck',
+        medical: 'ambulance',
+        crime: 'police_unit',
+        flood: 'ambulance'
+    };
+
+    const targetType = preferred[type] || 'police_unit';
+    let resource = resources.find(r => r.type === targetType && r.status === 'available');
+    if (!resource) {
+        resource = resources.find(r => r.status === 'available');
+    }
+    return resource;
 }
 
 function sendResponderMessage() {
@@ -507,6 +672,8 @@ function renderCoordinatorDashboard() {
     renderCoordinatorIncidentTable();
     renderCoordinatorRecentAlerts();
     renderCoordinatorCharts();
+    renderCoordinatorAIPanels();
+    renderRoleHint('coordinator');
 }
 
 function renderCoordinatorIntegrationStatus() {
@@ -598,12 +765,20 @@ function assignIncidentToService(incidentId) {
     const incident = incidents.find(i => i.id === incidentId);
     if (!incident) return;
 
+    const resource = findAvailableResource(incident.type);
+    if (!resource) {
+        showError('No available resources. Please assign once units are available.');
+        return;
+    }
+
     const route = getServiceRoute(incident.type);
-    incident.assignedUnit = route.unit;
-    incident.status = route.status;
+    incident.assignedUnit = resource.id;
+    incident.status = 'en-route';
+    resource.status = 'busy';
+
     updateHeaderInfo();
-    renderCoordinatorIncidentTable();
-    showSuccess('Incident Routed', `Incident ${incidentId} routed to ${route.label}.`);
+    renderCoordinatorDashboard();
+    showSuccess('Incident Routed', `Incident ${incidentId} routed to ${route.label} with ${resource.id}.`);
 }
 
 function getServiceRoute(type) {
@@ -624,13 +799,17 @@ function getServiceRoute(type) {
 function renderCoordinatorStats() {
     const total = incidents.filter(i => ['reported', 'en-route', 'assigned'].includes(i.status)).length;
     const avgResponse = calculateAverageResponse();
-    const activeUnits = resources.filter(r => r.status === 'busy').length;
-    const capacity = Math.round((activeUnits / resources.length) * 100);
+    const busyUnits = resources.filter(r => r.status === 'busy').length;
+    const availableUnits = resources.filter(r => r.status === 'available').length;
+    const pendingAssignments = incidents.filter(i => !i.assignedUnit).length;
+    const capacity = Math.min(100, Math.round((busyUnits / Math.max(resources.length, 1)) * 100));
     
     document.getElementById('coordTotalIncidents').textContent = total;
     document.getElementById('coordAvgResponse').textContent = avgResponse;
-    document.getElementById('coordActiveUnits').textContent = activeUnits + ' / ' + resources.length;
+    document.getElementById('coordActiveUnits').textContent = availableUnits + ' / ' + resources.length;
     document.getElementById('coordCapacityUsage').textContent = capacity + '%';
+    document.getElementById('coordPendingAssignments')?.textContent = pendingAssignments;
+    document.getElementById('coordResourceUsage')?.textContent = `${capacity}%`;
 }
 
 function renderCoordinatorHeatmap() {
@@ -699,12 +878,12 @@ function renderCoordinatorResources() {
 function renderCoordinatorIncidentTable() {
     const container = document.getElementById('coordinatorIncidentTable');
     if (!container) return;
-    
-    container.innerHTML = incidents
+
+    const tableRows = incidents
         .filter(i => ['reported', 'en-route', 'assigned'].includes(i.status))
         .sort((a, b) => b.time - a.time)
         .map(incident => `
-            <tr class="hover:bg-gray-50 transition-colors">
+            <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="assignIncidentToService('${incident.id}')">
                 <td class="py-3 px-4 font-mono text-sm">${incident.id}</td>
                 <td class="py-3 px-4">${getIncidentEmoji(incident.type)} ${incident.type.toUpperCase()}</td>
                 <td class="py-3 px-4">${incident.location}</td>
@@ -712,21 +891,23 @@ function renderCoordinatorIncidentTable() {
                     <span class="status-badge status-${incident.priority}">${getPriorityEmoji(incident.priority)} ${incident.priority}</span>
                 </td>
                 <td class="py-3 px-4">
-                    <span class="status-badge status-${incident.status === 'reported' ? 'critical' : 'medium'}">
+                    <span class="status-badge status-${incident.status === 'reported' ? 'critical' : incident.status === 'en-route' ? 'medium' : 'low'}">
                         ${incident.status.toUpperCase()}
                     </span>
                 </td>
                 <td class="py-3 px-4">${incident.assignedUnit || 'Unassigned'}</td>
                 <td class="py-3 px-4 space-x-2">
-                    <button onclick="assignIncidentToService('${incident.id}')" class="text-sm px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
+                    <button onclick="event.stopPropagation(); assignIncidentToService('${incident.id}')" class="text-sm px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
                         Route
                     </button>
-                    <button onclick="editIncident('${incident.id}')" class="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
+                    <button onclick="event.stopPropagation(); editIncident('${incident.id}')" class="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors">
                         Edit
                     </button>
                 </td>
             </tr>
         `).join('');
+
+    container.innerHTML = tableRows || '<tr><td colspan="7" class="py-6 px-4 text-center text-gray-500">No active incidents. Await reports or refresh the dashboard.</td></tr>';
 }
 
 function renderCoordinatorRecentAlerts() {
@@ -868,7 +1049,7 @@ function renderCoordinatorAIPanels() {
         aiContainer.innerHTML = `
             <p><strong>Incident:</strong> ${latest.id}</p>
             <p><strong>Suggested Type:</strong> ${prediction.type.toUpperCase()} (${prediction.confidence}%)</p>
-            <p><strong>Tags:</strong> ${prediction.tags.join(', ') || 'none'}</p>
+            <p><strong>Tags:</strong> ${prediction.tags.join(', ') || 'review'}</p>
         `;
     }
 
@@ -1042,7 +1223,24 @@ function showSuccess(title, message) {
 }
 
 function showError(message) {
-    alert('Error: ' + message); // In production, use a proper error modal
+    showToast(message, 'error');
+}
+
+function showToast(message, type = 'info', duration = 4000) {
+    const toast = document.getElementById('notificationToast');
+    if (!toast) {
+        alert(message);
+        return;
+    }
+
+    toast.textContent = message;
+    toast.className = `fixed bottom-6 right-6 z-50 max-w-sm rounded-xl p-4 text-sm font-medium shadow-xl ring-1 ring-black/10 ${type === 'error' ? 'bg-red-600 text-white' : type === 'warning' ? 'bg-orange-500 text-white' : 'bg-green-600 text-white'}`;
+    toast.classList.remove('hidden');
+
+    clearTimeout(toast._hideTimeout);
+    toast._hideTimeout = setTimeout(() => {
+        toast.classList.add('hidden');
+    }, duration);
 }
 
 function editIncident(incidentId) {
