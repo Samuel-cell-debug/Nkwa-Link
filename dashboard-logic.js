@@ -65,6 +65,9 @@ let messages = [
 ];
 
 let alerts = [];
+let currentIncidentDetailId = null;
+let incidentEditMode = false;
+const API_BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:4000' : window.location.origin;
 let incidentChartInstance = null;
 let responseChartInstance = null;
 let forecastChartInstance = null;
@@ -90,6 +93,7 @@ function initializeDashboard() {
     populateLanguageOptions();
     monitorConnectionStatus();
     registerServiceWorker();
+    refreshOfflineQueueStatus();
 }
 
 function setupEventListeners() {
@@ -97,13 +101,6 @@ function setupEventListeners() {
     document.getElementById('languageSelect')?.addEventListener('change', (e) => {
         setLanguage(e.target.value);
     });
-
-    // Help tour
-    document.getElementById('helpBtn')?.addEventListener('click', showTour);
-    document.getElementById('closeTourBtn')?.addEventListener('click', closeTour);
-    document.getElementById('tourPrevBtn')?.addEventListener('click', previousTourStep);
-    document.getElementById('tourNextBtn')?.addEventListener('click', nextTourStep);
-    document.getElementById('tourEndBtn')?.addEventListener('click', closeTour);
 
     // Push notifications
     document.getElementById('enablePushBtn')?.addEventListener('click', subscribeToPushNotifications);
@@ -164,6 +161,30 @@ function setupEventListeners() {
     // Modal close buttons
     document.getElementById('closeSuccessBtn')?.addEventListener('click', () => {
         document.getElementById('successModal').classList.add('hidden');
+    });
+    document.getElementById('closeIncidentDetailBtn')?.addEventListener('click', closeIncidentDetailModal);
+    document.getElementById('incidentDetailClose')?.addEventListener('click', closeIncidentDetailModal);
+    document.getElementById('incidentDetailAssign')?.addEventListener('click', () => {
+        if (currentIncidentDetailId) {
+            assignIncidentToService(currentIncidentDetailId);
+            closeIncidentDetailModal();
+        }
+    });
+    document.getElementById('incidentDetailResolve')?.addEventListener('click', () => {
+        if (currentIncidentDetailId) {
+            resolveIncident(currentIncidentDetailId);
+            closeIncidentDetailModal();
+        }
+    });
+    document.getElementById('incidentDetailEdit')?.addEventListener('click', () => {
+        if (currentIncidentDetailId) {
+            showIncidentDetails(currentIncidentDetailId, true);
+        }
+    });
+    document.getElementById('incidentDetailSave')?.addEventListener('click', () => {
+        if (currentIncidentDetailId) {
+            saveIncidentChanges(currentIncidentDetailId);
+        }
     });
 }
 
@@ -279,22 +300,6 @@ function renderDashboard(role) {
     }
 }
 
-let tourStepIndex = 0;
-const tourSteps = [
-    {
-        title: 'Citizen Reporting',
-        description: 'In Citizen mode, report emergencies quickly using the form. Use GPS for precise location and add details so responders can act fast.'
-    },
-    {
-        title: 'Responder Flow',
-        description: 'In Responder mode, see incoming incidents, update your status, and accept assignments to move into action.'
-    },
-    {
-        title: 'Coordinator Command',
-        description: 'In Coordinator mode, assign units, manage integrations, and broadcast alerts to keep everyone informed.'
-    }
-];
-
 function renderRoleHint(role) {
     const hint = document.getElementById('roleHint');
     if (!hint) return;
@@ -321,45 +326,6 @@ function renderRoleHint(role) {
     `;
 }
 
-function showTour() {
-    tourStepIndex = 0;
-    renderTourStep();
-    document.getElementById('tourModal')?.classList.remove('hidden');
-}
-
-function closeTour() {
-    document.getElementById('tourModal')?.classList.add('hidden');
-}
-
-function renderTourStep() {
-    const step = tourSteps[tourStepIndex];
-    const title = document.getElementById('tourTitle');
-    const content = document.getElementById('tourContent');
-    const prevBtn = document.getElementById('tourPrevBtn');
-    const nextBtn = document.getElementById('tourNextBtn');
-
-    if (title) title.textContent = step.title;
-    if (content) content.innerHTML = `<p>${step.description}</p>`;
-    if (prevBtn) prevBtn.disabled = tourStepIndex === 0;
-    if (nextBtn) nextBtn.textContent = tourStepIndex === tourSteps.length - 1 ? 'Finish' : 'Next';
-}
-
-function nextTourStep() {
-    if (tourStepIndex < tourSteps.length - 1) {
-        tourStepIndex += 1;
-        renderTourStep();
-    } else {
-        closeTour();
-    }
-}
-
-function previousTourStep() {
-    if (tourStepIndex > 0) {
-        tourStepIndex -= 1;
-        renderTourStep();
-    }
-}
-
 // ===== CITIZEN DASHBOARD =====
 function renderCitizenDashboard() {
     renderCitizenAlerts();
@@ -380,7 +346,7 @@ function renderCitizenAlerts() {
     }
 
     container.innerHTML = alertItems.map(incident => `
-            <div class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4">
+            <div onclick="showIncidentDetails('${incident.id}')" class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all">
                 <div class="flex items-start justify-between">
                     <div>
                         <div class="flex items-center gap-2">
@@ -401,20 +367,20 @@ function renderCitizenAlerts() {
         `).join('');
 }
 
-async function handleCitizenReport(e) {
+function handleCitizenReport(e) {
     e.preventDefault();
-
+    
     const type = document.getElementById('citizenEmergencyType').value;
     const priority = document.getElementById('citizenPriority').value;
     const location = document.getElementById('citizenLocation').value;
     const description = document.getElementById('citizenDescription').value;
     const phone = document.getElementById('citizenPhone').value;
-
+    
     if (!type || !location || !phone) {
         showError('Please fill in all required fields');
         return;
     }
-
+    
     const newIncident = {
         id: `INC-${Math.floor(Math.random() * 100000)}`,
         type,
@@ -432,38 +398,33 @@ async function handleCitizenReport(e) {
     updateHeaderInfo();
     renderDashboard('citizen');
 
+    const finalizeReport = (message, isOffline = false) => {
+        if (isOffline) {
+            showSuccess('Offline Report Queued', message);
+        } else {
+            showSuccess('Emergency Report Submitted', message);
+        }
+    };
+
     if (!navigator.onLine) {
         savePendingReport(newIncident)
             .then(() => enqueueReportSync())
             .catch(() => console.warn('Could not queue report for later sync'));
-        showSuccess('Offline Report Queued', `Report ${newIncident.id} will sync when online`);
+        finalizeReport(`Report ${newIncident.id} will sync when online`, true);
     } else {
-        try {
-            await submitIncidentReport(newIncident);
-            showSuccess('Emergency Report Submitted', `Your report ID is: ${newIncident.id}`);
-        } catch (error) {
-            savePendingReport(newIncident)
-                .then(() => enqueueReportSync())
-                .catch(() => console.warn('Could not queue report for later sync'));
-            showError('Unable to send report immediately. It will retry when online.');
-        }
+        submitReportToServer(newIncident)
+            .then(() => {
+                finalizeReport(`Your report ID is: ${newIncident.id}`);
+            })
+            .catch(async error => {
+                console.warn('Report submission failed:', error);
+                await savePendingReport(newIncident);
+                enqueueReportSync();
+                finalizeReport(`Report ${newIncident.id} will sync when connection is stable`, true);
+            });
     }
 
     document.getElementById('citizenReportForm').reset();
-}
-
-async function submitIncidentReport(report) {
-    const response = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(report)
-    });
-
-    if (!response.ok) {
-        throw new Error(`Report submission failed (${response.status})`);
-    }
-
-    return await response.json();
 }
 
 function getUserLocation() {
@@ -536,7 +497,7 @@ function renderResponderIncidentQueue() {
     container.innerHTML = queue.map(incident => {
         const alreadyAssigned = !!incident.assignedUnit;
         return `
-            <div class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4">
+            <div onclick="showIncidentDetails('${incident.id}')" class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div class="flex-1">
                         <div class="flex flex-wrap items-center gap-2">
@@ -547,7 +508,7 @@ function renderResponderIncidentQueue() {
                         <p class="text-sm text-gray-600">${incident.type.toUpperCase()} • ${alreadyAssigned ? 'Assigned to ' + incident.assignedUnit : 'Awaiting assignment'}</p>
                         <p class="text-xs text-gray-500 mt-1">Reported: ${formatTime(incident.time)}</p>
                     </div>
-                    <button onclick="acceptIncident('${incident.id}')" class="px-4 py-2 ${alreadyAssigned ? 'bg-slate-300 text-slate-700 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} rounded-lg text-sm font-semibold transition-colors" ${alreadyAssigned ? 'disabled' : ''}>
+                    <button onclick="event.stopPropagation(); acceptIncident('${incident.id}')" class="px-4 py-2 ${alreadyAssigned ? 'bg-slate-300 text-slate-700 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} rounded-lg text-sm font-semibold transition-colors" ${alreadyAssigned ? 'disabled' : ''}>
                         ${alreadyAssigned ? 'Assigned' : 'Accept'}
                     </button>
                 </div>
@@ -615,35 +576,19 @@ function acceptIncident(incidentId) {
     const incident = incidents.find(i => i.id === incidentId);
     if (!incident) return;
 
-    const resource = findAvailableResource(incident.type);
-    if (!resource) {
-        showError('No available responder units. Please wait for resources to free up.');
+    const unit = selectAvailableResourceForIncident(incident.type);
+    if (!unit) {
+        showError('No available units can be assigned at this time.');
         return;
     }
 
-    resource.status = 'busy';
-    incident.status = 'en-route';
-    incident.assignedUnit = resource.id;
+    incident.status = 'assigned';
+    incident.assignedUnit = unit.id;
+    markResourceStatus(unit.id, 'busy');
     updateHeaderInfo();
     renderResponderDashboard();
     renderCoordinatorDashboard();
-    showSuccess('Incident Accepted', `Incident ${incidentId} assigned to ${resource.id}`);
-}
-
-function findAvailableResource(type) {
-    const preferred = {
-        fire: 'fire_truck',
-        medical: 'ambulance',
-        crime: 'police_unit',
-        flood: 'ambulance'
-    };
-
-    const targetType = preferred[type] || 'police_unit';
-    let resource = resources.find(r => r.type === targetType && r.status === 'available');
-    if (!resource) {
-        resource = resources.find(r => r.status === 'available');
-    }
-    return resource;
+    showSuccess('Incident Accepted', `Incident ${incidentId} assigned to ${unit.id}`);
 }
 
 function sendResponderMessage() {
@@ -732,7 +677,7 @@ function connectBroadcastSystem() {
 }
 
 async function attemptIntegration(type, retries = 3) {
-    const url = `/api/integrations/${type}/connect`;
+    const url = `${API_BASE_URL}/api/integrations/${type}/connect`;
     let attempt = 0;
     const maxDelay = 2000;
 
@@ -741,7 +686,7 @@ async function attemptIntegration(type, retries = 3) {
         try {
             // update UI
             const statusEl = document.getElementById(`${type}IntegrationStatus`);
-            if (statusEl) statusEl.textContent = 'Connecting...';
+            if (statusEl) statusEl.textContent = `Connecting... (${attempt}/${retries})`;
 
             const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timestamp: Date.now() }) });
             if (!res.ok) throw new Error(`Status ${res.status}`);
@@ -752,7 +697,11 @@ async function attemptIntegration(type, retries = 3) {
                 // final failure
                 const statusEl = document.getElementById(`${type}IntegrationStatus`);
                 if (statusEl) statusEl.textContent = 'Disconnected';
+                showToast(`${type.toUpperCase()} connection failed after ${attempt} attempts.`, 'error');
                 throw err;
+            } else {
+                const statusEl = document.getElementById(`${type}IntegrationStatus`);
+                if (statusEl) statusEl.textContent = `Retrying... (${attempt}/${retries})`;
             }
             // backoff
             const delay = Math.min(maxDelay, 300 * Math.pow(2, attempt));
@@ -765,20 +714,20 @@ function assignIncidentToService(incidentId) {
     const incident = incidents.find(i => i.id === incidentId);
     if (!incident) return;
 
-    const resource = findAvailableResource(incident.type);
-    if (!resource) {
-        showError('No available resources. Please assign once units are available.');
-        return;
-    }
-
     const route = getServiceRoute(incident.type);
-    incident.assignedUnit = resource.id;
-    incident.status = 'en-route';
-    resource.status = 'busy';
+    const previousUnit = incident.assignedUnit;
+    incident.assignedUnit = route.unit;
+    incident.status = route.status;
+    markResourceStatus(route.unit, 'busy');
+
+    if (previousUnit && previousUnit !== route.unit) {
+        markResourceStatus(previousUnit, 'available');
+    }
 
     updateHeaderInfo();
     renderCoordinatorDashboard();
-    showSuccess('Incident Routed', `Incident ${incidentId} routed to ${route.label} with ${resource.id}.`);
+    renderResponderDashboard();
+    showSuccess('Incident Routed', `Incident ${incidentId} routed to ${route.label}.`);
 }
 
 function getServiceRoute(type) {
@@ -794,6 +743,36 @@ function getServiceRoute(type) {
         default:
             return { unit: 'COORD-001', label: 'Coordinator Review', status: 'assigned' };
     }
+}
+
+function selectAvailableResourceForIncident(type) {
+    const preferred = type === 'fire' ? 'fire_truck' : type === 'medical' ? 'ambulance' : type === 'crime' ? 'police_unit' : undefined;
+    let unit = resources.find(r => r.status === 'available' && (!preferred || r.type === preferred));
+    if (!unit) {
+        unit = resources.find(r => r.status === 'available');
+    }
+    return unit || null;
+}
+
+function markResourceStatus(unitId, status) {
+    const resource = resources.find(r => r.id === unitId);
+    if (!resource) return;
+    resource.status = status;
+    if (currentUser?.role === 'responder') renderResponderResources();
+    if (currentUser?.role === 'coordinator') renderCoordinatorResources();
+}
+
+async function submitReportToServer(report) {
+    const url = `${API_BASE_URL}/api/reports`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+    });
+    if (!response.ok) {
+        throw new Error(`Report submission failed: ${response.status}`);
+    }
+    return response.json();
 }
 
 function renderCoordinatorStats() {
@@ -883,7 +862,7 @@ function renderCoordinatorIncidentTable() {
         .filter(i => ['reported', 'en-route', 'assigned'].includes(i.status))
         .sort((a, b) => b.time - a.time)
         .map(incident => `
-            <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="assignIncidentToService('${incident.id}')">
+            <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="showIncidentDetails('${incident.id}')">
                 <td class="py-3 px-4 font-mono text-sm">${incident.id}</td>
                 <td class="py-3 px-4">${getIncidentEmoji(incident.type)} ${incident.type.toUpperCase()}</td>
                 <td class="py-3 px-4">${incident.location}</td>
@@ -1243,9 +1222,170 @@ function showToast(message, type = 'info', duration = 4000) {
     }, duration);
 }
 
+function showIncidentDetails(incidentId, editable = false) {
+    const incident = incidents.find(i => i.id === incidentId);
+    if (!incident) return;
+
+    currentIncidentDetailId = incidentId;
+    incidentEditMode = editable && currentUser.role === 'coordinator';
+    const content = document.getElementById('incidentDetailContent');
+    const title = document.getElementById('incidentDetailTitle');
+    const subtitle = document.getElementById('incidentDetailSubtitle');
+
+    if (!content || !title || !subtitle) return;
+
+    title.textContent = `${incident.id} • ${incident.location}`;
+    subtitle.textContent = `${incident.type.toUpperCase()} • ${incident.priority.toUpperCase()} • ${incident.status.toUpperCase()}`;
+
+    if (incidentEditMode) {
+        const resourceOptions = resources
+            .filter(r => r.status === 'available' || r.id === incident.assignedUnit)
+            .map(r => `<option value="${r.id}" ${incident.assignedUnit === r.id ? 'selected' : ''}>${r.id} (${r.type.replace('_', ' ')})</option>`)
+            .join('');
+
+        content.innerHTML = `
+            <form id="incidentDetailEditForm" class="space-y-4">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="rounded-2xl bg-gray-50 p-4">
+                        <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Reporter</p>
+                        <p class="mt-2 text-sm text-gray-900">${incident.reporter.name}</p>
+                        <p class="text-xs text-gray-500">${incident.reporter.phone}</p>
+                        <p class="text-xs text-gray-500 mt-3">Submitted ${formatTime(incident.time)}</p>
+                    </div>
+                    <div class="rounded-2xl bg-gray-50 p-4 space-y-3">
+                        <div>
+                            <label class="block text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">Status</label>
+                            <select id="incidentDetailStatus" class="w-full p-3 border border-gray-300 rounded-lg">
+                                <option value="reported" ${incident.status === 'reported' ? 'selected' : ''}>Reported</option>
+                                <option value="en-route" ${incident.status === 'en-route' ? 'selected' : ''}>En Route</option>
+                                <option value="assigned" ${incident.status === 'assigned' ? 'selected' : ''}>Assigned</option>
+                                <option value="resolved" ${incident.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">Priority</label>
+                            <select id="incidentDetailPriority" class="w-full p-3 border border-gray-300 rounded-lg">
+                                <option value="critical" ${incident.priority === 'critical' ? 'selected' : ''}>Critical</option>
+                                <option value="high" ${incident.priority === 'high' ? 'selected' : ''}>High</option>
+                                <option value="medium" ${incident.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                                <option value="low" ${incident.priority === 'low' ? 'selected' : ''}>Low</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">Assigned Unit</label>
+                            <select id="incidentDetailAssignedUnit" class="w-full p-3 border border-gray-300 rounded-lg">
+                                <option value="">Unassigned</option>
+                                ${resourceOptions}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <label class="block text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">Location</label>
+                    <input id="incidentDetailLocation" class="w-full p-3 border border-gray-300 rounded-lg" value="${incident.location}">
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <label class="block text-xs uppercase tracking-[0.2em] text-gray-500 mb-2">Description</label>
+                    <textarea id="incidentDetailDescription" rows="4" class="w-full p-3 border border-gray-300 rounded-lg">${incident.description}</textarea>
+                </div>
+            </form>
+        `;
+    } else {
+        content.innerHTML = `
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Reporter</p>
+                    <p class="mt-2 text-sm text-gray-900">${incident.reporter.name}</p>
+                    <p class="text-xs text-gray-500">${incident.reporter.phone}</p>
+                    <p class="text-xs text-gray-500 mt-3">Submitted ${formatTime(incident.time)}</p>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Assigned Unit</p>
+                    <p class="mt-2 text-sm text-gray-900">${incident.assignedUnit || 'Unassigned'}</p>
+                    <p class="text-xs text-gray-500 mt-3">Status: ${incident.status}</p>
+                </div>
+            </div>
+            <div class="rounded-2xl bg-gray-50 p-4">
+                <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Description</p>
+                <p class="mt-2 text-sm text-gray-700">${incident.description}</p>
+            </div>
+            <div class="rounded-2xl bg-gray-50 p-4">
+                <p class="text-xs uppercase tracking-[0.2em] text-gray-500">Recommended Response</p>
+                <p class="mt-2 text-sm text-gray-700">${recommendResourceAllocation(incident).reason}</p>
+            </div>
+        `;
+    }
+
+    document.getElementById('incidentDetailModal')?.classList.remove('hidden');
+    toggleIncidentDetailButtons(incidentEditMode);
+}
+
+function closeIncidentDetailModal() {
+    currentIncidentDetailId = null;
+    incidentEditMode = false;
+    document.getElementById('incidentDetailModal')?.classList.add('hidden');
+}
+
+function toggleIncidentDetailButtons(editMode) {
+    document.getElementById('incidentDetailAssign')?.classList.toggle('hidden', editMode);
+    document.getElementById('incidentDetailResolve')?.classList.toggle('hidden', editMode);
+    document.getElementById('incidentDetailEdit')?.classList.toggle('hidden', editMode || currentUser.role !== 'coordinator');
+    document.getElementById('incidentDetailSave')?.classList.toggle('hidden', !editMode);
+}
+
+function saveIncidentChanges(incidentId) {
+    const incident = incidents.find(i => i.id === incidentId);
+    if (!incident) return;
+
+    const status = document.getElementById('incidentDetailStatus')?.value;
+    const priority = document.getElementById('incidentDetailPriority')?.value;
+    const assignedUnit = document.getElementById('incidentDetailAssignedUnit')?.value || null;
+    const location = document.getElementById('incidentDetailLocation')?.value;
+    const description = document.getElementById('incidentDetailDescription')?.value;
+
+    if (!status || !priority || !location) {
+        showError('Status, priority, and location are required.');
+        return;
+    }
+
+    const previousUnit = incident.assignedUnit;
+    incident.status = status;
+    incident.priority = priority;
+    incident.location = location;
+    incident.description = description;
+    incident.assignedUnit = assignedUnit;
+
+    if (assignedUnit && assignedUnit !== previousUnit) {
+        markResourceStatus(assignedUnit, 'busy');
+    }
+    if (previousUnit && previousUnit !== assignedUnit) {
+        markResourceStatus(previousUnit, 'available');
+    }
+
+    incidentEditMode = false;
+    updateHeaderInfo();
+    renderCoordinatorDashboard();
+    renderResponderDashboard();
+    showSuccess('Incident Updated', `Incident ${incidentId} has been updated.`);
+    showIncidentDetails(incidentId, false);
+}
+
+function resolveIncident(incidentId) {
+    const incident = incidents.find(i => i.id === incidentId);
+    if (!incident) return;
+    incident.status = 'resolved';
+    incident.resolvedTime = new Date();
+    if (incident.assignedUnit) {
+        markResourceStatus(incident.assignedUnit, 'available');
+    }
+    updateHeaderInfo();
+    if (currentUser.role === 'responder') renderResponderDashboard();
+    if (currentUser.role === 'coordinator') renderCoordinatorDashboard();
+    showToast(`Incident ${incidentId} marked as resolved.`, 'success');
+}
+
 function editIncident(incidentId) {
-    console.log('Editing incident:', incidentId);
-    showSuccess('Edit Incident', 'Edit interface would open for ' + incidentId);
+    showIncidentDetails(incidentId, true);
 }
 
 function showRegionIncidents(regionIndex) {
@@ -1268,6 +1408,32 @@ function logout() {
 
 function monitorConnectionStatus() {
     setConnectionIndicator(navigator.onLine);
+}
+
+async function getPendingReportCount() {
+    try {
+        const db = await openDb();
+        const tx = db.transaction('pendingReports', 'readonly');
+        const store = tx.objectStore('pendingReports');
+        const count = await new Promise((resolve, reject) => {
+            const req = store.count();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        return count;
+    } catch (error) {
+        console.warn('Unable to read pending report count:', error);
+        return 0;
+    }
+}
+
+async function refreshOfflineQueueStatus() {
+    const count = await getPendingReportCount();
+    const statusEl = document.getElementById('pendingOfflineCount');
+    if (statusEl) {
+        statusEl.textContent = count > 0 ? `${count} pending` : 'All synced';
+    }
+    return count;
 }
 
 function setConnectionIndicator(isOnline) {
@@ -1385,10 +1551,11 @@ async function savePendingReport(report) {
     const db = await openDb();
     const tx = db.transaction('pendingReports', 'readwrite');
     tx.objectStore('pendingReports').put(report);
-    return tx.complete || new Promise((resolve, reject) => {
+    await (tx.complete || new Promise((resolve, reject) => {
         tx.oncomplete = resolve;
         tx.onerror = reject;
-    });
+    }));
+    await refreshOfflineQueueStatus();
 }
 
 async function syncOfflineReportsIfOnline() {
@@ -1405,7 +1572,7 @@ async function syncOfflineReportsIfOnline() {
 
         for (const report of allReports) {
             try {
-                await fetch('/api/reports', {
+                await fetch(`${API_BASE_URL}/api/reports`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(report)
@@ -1419,6 +1586,7 @@ async function syncOfflineReportsIfOnline() {
     } catch (error) {
         console.warn('Sync offline reports failed:', error);
     }
+    await refreshOfflineQueueStatus();
 }
 
 function enqueueReportSync() {
@@ -1429,12 +1597,14 @@ function enqueueReportSync() {
                 console.warn('Background sync registration failed.');
             });
         }
+        refreshOfflineQueueStatus();
     });
 }
 
 // ===== PERIODIC UPDATES =====
 setInterval(() => {
     updateHeaderInfo();
+    refreshOfflineQueueStatus();
     if (currentUser?.role === 'responder') {
         renderResponderDashboard();
     } else if (currentUser?.role === 'coordinator') {

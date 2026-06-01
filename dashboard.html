@@ -253,10 +253,6 @@
                         <option value="ee">Ewe</option>
                         <option value="ha">Hausa</option>
                     </select>
-
-                    <button id="helpBtn" type="button" class="hidden sm:inline-flex items-center justify-center rounded-lg bg-white text-red-700 px-3 py-2 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-red-50 transition-colors">
-                        Help
-                    </button>
                     
                     <!-- User Menu -->
                     <div class="hidden sm:flex items-center gap-2">
@@ -276,7 +272,7 @@
             </div>
             
             <!-- Quick Info Bar -->
-            <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+            <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
                 <div class="bg-red-700/50 rounded px-3 py-2">
                     <span class="text-red-100">Active Incidents</span>
                     <p class="text-lg font-bold" id="headerIncidentCount">0</p>
@@ -292,6 +288,10 @@
                 <div class="bg-red-700/50 rounded px-3 py-2">
                     <span class="text-red-100">Alerts</span>
                     <p class="text-lg font-bold emergency-pulse" id="headerAlerts">0</p>
+                </div>
+                <div class="bg-red-700/50 rounded px-3 py-2">
+                    <span class="text-red-100">Pending Sync</span>
+                    <p class="text-lg font-bold" id="pendingOfflineCount">0</p>
                 </div>
             </div>
             <div id="roleHint" class="mt-4 rounded-3xl bg-white/90 border border-white/60 p-4 shadow-sm text-sm text-gray-700 max-w-7xl mx-auto">
@@ -399,7 +399,10 @@
                 
                 <!-- Recent Alerts -->
                 <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="high-contrast-heading mb-4">Local Emergency Alerts</h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="high-contrast-heading">Local Emergency Alerts</h3>
+                        <button id="refreshCitizenAlerts" class="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">Refresh Alerts</button>
+                    </div>
                     <div id="citizenAlertsContainer" class="space-y-3"></div>
                 </div>
             </div>
@@ -432,7 +435,10 @@
                 <div class="grid gap-6 lg:grid-cols-3">
                     <!-- Incident Queue -->
                     <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
-                        <h3 class="high-contrast-heading mb-4">Incident Queue</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="high-contrast-heading">Incident Queue</h3>
+                            <button id="responderRefreshTable" class="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">Refresh Queue</button>
+                        </div>
                         <div id="responderIncidentQueue" class="space-y-3 max-h-96 overflow-y-auto"></div>
                     </div>
                     
@@ -697,31 +703,26 @@
         </div>
     </div>
 
-    <div id="notificationToast" class="hidden fixed bottom-6 right-6 z-50 max-w-sm rounded-xl p-4 text-sm font-medium shadow-xl ring-1 ring-black/10" aria-live="polite"></div>
-
-    <div id="tourModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
-        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl">
-            <div class="flex items-start justify-between gap-4">
+    <div id="incidentDetailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-3xl w-full p-6 slide-in overflow-y-auto max-h-[90vh]">
+            <div class="flex items-start justify-between gap-4 mb-6">
                 <div>
-                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-red-600">Quick Start Guide</p>
-                    <h2 class="text-2xl font-bold text-gray-900 mt-2" id="tourTitle">Welcome to Nkwalink</h2>
+                    <h3 class="text-2xl font-bold text-gray-900" id="incidentDetailTitle">Incident Details</h3>
+                    <p class="text-sm text-gray-600 mt-1" id="incidentDetailSubtitle">View the incident summary and response actions.</p>
                 </div>
-                <button id="closeTourBtn" class="text-gray-400 hover:text-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <button id="closeIncidentDetailBtn" class="text-gray-400 hover:text-gray-700">Close</button>
             </div>
-            <div class="mt-6 space-y-4 text-sm text-gray-700" id="tourContent"></div>
-            <div class="mt-6 flex items-center justify-between">
-                <button id="tourPrevBtn" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">Previous</button>
-                <div class="flex gap-2">
-                    <button id="tourNextBtn" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">Next</button>
-                    <button id="tourEndBtn" class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">End Tour</button>
-                </div>
+            <div id="incidentDetailContent" class="space-y-4 text-sm text-gray-700"></div>
+            <div class="mt-6 flex flex-wrap gap-3">
+                <button id="incidentDetailAssign" class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Assign Unit</button>
+                <button id="incidentDetailResolve" class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Mark Resolved</button>
+                <button id="incidentDetailEdit" class="px-4 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">Edit Details</button>
+                <button id="incidentDetailSave" class="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors hidden">Save Changes</button>
+                <button id="incidentDetailClose" class="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Close</button>
             </div>
         </div>
     </div>
+    <div id="notificationToast" class="hidden fixed bottom-6 right-6 z-50 max-w-sm rounded-xl p-4 text-sm font-medium shadow-xl ring-1 ring-black/10" aria-live="polite"></div>
 
     <script src="dashboard-logic.js"></script>
 </body>
