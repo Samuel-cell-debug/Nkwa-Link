@@ -67,20 +67,80 @@ const responderCredentials = {
   'resp003': { id: 'resp003', name: 'Officer Kwame Asante', password: 'field789', role: 'responder', unit: 'Police Patrol 7' }
 };
 
-const responderSessions = {}; // token -> { responderId, createdAt }
-const incidentAssignments = []; // { id, type, location, description, responder, status, createdAt, media }
-const backupRequests = []; // { id, responderId, incidentId, resourceType, quantity, urgency, status }
-const responderMessages = []; // { id, fromRole, toRole, responderId, incidentId, text, createdAt }
-const notificationQueue = {}; // responder -> [{ message, read }]
+const userSessions = {};
+const responderSessions = userSessions;
+const coordinatorCredentials = {
+  'coord001': { id: 'coord001', name: 'Chief Coordinator Amina', password: 'control456', role: 'coordinator', region: 'national' },
+  'coord002': { id: 'coord002', name: 'Deputy Coordinator Kofi', password: 'command789', role: 'coordinator', region: 'greater_accra' },
+  'coord003': { id: 'coord003', name: 'Central Command', password: 'central123', role: 'coordinator', region: 'ashanti' }
+};
+const incidentAssignments = []; // { id, type, location, description, responderId, assignedUnit, status, severity, region, createdAt, media, lat, lng }
+const backupRequests = []; // { id, responderId, incidentId, resourceType, quantity, urgency, details, status }
+const responderMessages = []; // { id, fromRole, toRole, responderId, incidentId, text, type, createdAt }
+const notificationQueue = {}; // responder/coordinator -> [{ message, read }]
+const resourceInventory = [
+  { id: 'ambulance-1', type: 'ambulance', status: 'available', location: 'Accra', assignedTo: null, capacity: 4 },
+  { id: 'fire-1', type: 'fire_truck', status: 'on_duty', location: 'Kumasi', assignedTo: null, capacity: 8 },
+  { id: 'police-1', type: 'police_unit', status: 'available', location: 'Tema', assignedTo: null, capacity: 6 },
+  { id: 'med-1', type: 'medical_supplies', status: 'stocked', location: 'Accra', quantity: 120 },
+  { id: 'team-1', type: 'personnel', status: 'ready', location: 'Volta', quantity: 30 }
+];
+const alertHistory = [];
+const broadcastHistory = [];
+
+function inferRegion(location) {
+  const text = (location || '').toLowerCase();
+  if (text.includes('accra') || text.includes('tema')) return 'greater_accra';
+  if (text.includes('kumasi') || text.includes('ashanti')) return 'ashanti';
+  if (text.includes('volta')) return 'volta';
+  return 'greater_accra';
+}
+
+function createIncidentFromReport(report) {
+  const region = report.meta?.region || inferRegion(report.location);
+  const severity = report.severity || (['fire', 'medical'].includes(report.type) ? 'high' : 'medium');
+  const coords = {
+    greater_accra: { lat: 5.60, lng: -0.18 },
+    ashanti: { lat: 6.69, lng: -1.62 },
+    tema: { lat: 5.67, lng: 0.02 },
+    volta: { lat: 6.60, lng: 0.48 }
+  }[region] || { lat: 5.60, lng: -0.18 };
+
+  return {
+    id: `inc-${uuidv4()}`,
+    type: report.type,
+    location: report.location || 'Unknown location',
+    description: report.description || 'No details provided',
+    status: 'new',
+    severity,
+    region,
+    lat: coords.lat,
+    lng: coords.lng,
+    createdAt: Date.now(),
+    assignedUnit: null,
+    responderId: null,
+    media: report.media || []
+  };
+}
 
 // Auth middleware
 function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token || !responderSessions[token]) {
+  if (!token || !userSessions[token]) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
-  req.responder = responderSessions[token];
+  req.user = userSessions[token];
+  req.responder = req.user;
   next();
+}
+
+function coordinatorAuth(req, res, next) {
+  authMiddleware(req, res, () => {
+    if (!req.user || req.user.role !== 'coordinator') {
+      return res.status(403).json({ ok: false, error: 'Coordinator access required' });
+    }
+    next();
+  });
 }
 
 // Health
@@ -102,7 +162,17 @@ app.get('/', (req, res) => {
       '/api/responders/:responderId/incidents',
       '/api/responders/:responderId/backup-request',
       '/api/responders/:responderId/message',
-      '/api/responders/:responderId/notifications'
+      '/api/responders/:responderId/notifications',
+      '/api/coordinators/login',
+      '/api/coordinators/incidents',
+      '/api/coordinators/resources',
+      '/api/coordinators/resource-requests',
+      '/api/coordinators/resource-requests/:requestId',
+      '/api/coordinators/notifications',
+      '/api/coordinators/incidents/:incidentId/assign',
+      '/api/coordinators/broadcast',
+      '/api/coordinators/analytics',
+      '/api/coordinators/reports/export'
     ]
   });
 });
@@ -135,10 +205,14 @@ app.post('/api/reports', upload.array('media', 4), async (req, res) => {
       location: payload.location || payload.gps || '',
       description: payload.description || payload.text || '',
       language: payload.language || 'en',
+      severity: payload.severity || 'medium',
       media,
       source: payload.source || 'web',
       meta: payload.meta ? JSON.parse(payload.meta) : undefined
     };
+
+    const incident = createIncidentFromReport(record);
+    incidentAssignments.push(incident);
 
     if (dbConnected && ReportModel) {
       const saved = await ReportModel.create(record);
@@ -188,7 +262,9 @@ app.post('/api/integrations/sms-report', async (req, res) => {
     }
 
     const trackingId = `NK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
-    const record = { trackingId, type, location, description, language: language || 'en', source: 'sms', meta: { from } };
+    const record = { trackingId, type, location, description, language: language || 'en', severity: 'medium', source: 'sms', meta: { from } };
+    const incident = createIncidentFromReport(record);
+    incidentAssignments.push(incident);
 
     if (dbConnected && ReportModel) {
       await ReportModel.create(record);
@@ -219,7 +295,9 @@ app.post('/api/integrations/ussd-report', async (req, res) => {
       description = parts.slice(2).join(' | ');
     }
     const trackingId = `NK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
-    const record = { trackingId, type, location, description, language: language || 'en', source: 'ussd', meta: { sessionId, phone } };
+    const record = { trackingId, type, location, description, language: language || 'en', severity: 'medium', source: 'ussd', meta: { sessionId, phone } };
+    const incident = createIncidentFromReport(record);
+    incidentAssignments.push(incident);
 
     if (dbConnected && ReportModel) {
       await ReportModel.create(record);
@@ -369,6 +447,152 @@ app.get('/api/responders/:responderId/notifications', authMiddleware, (req, res)
   
   // Clear notifications after sending
   notificationQueue[responderId] = [];
+});
+
+// ===== COORDINATOR ENDPOINTS =====
+
+app.post('/api/coordinators/login', (req, res) => {
+  const { username, password } = req.body;
+  const creds = coordinatorCredentials[username];
+  if (!creds || creds.password !== password) {
+    return res.status(401).json({ ok: false, error: 'Invalid credentials' });
+  }
+  const token = `token-${uuidv4()}`;
+  userSessions[token] = { userId: creds.id, role: 'coordinator', name: creds.name, region: creds.region };
+  notificationQueue[creds.id] = notificationQueue[creds.id] || [];
+  res.json({ ok: true, token, coordinator: { id: creds.id, name: creds.name, region: creds.region } });
+});
+
+app.get('/api/coordinators/incidents', coordinatorAuth, (req, res) => {
+  let incidents = incidentAssignments.slice();
+  if (incidents.length === 0) {
+    incidents = [
+      { id: `inc-${uuidv4()}`, type: 'fire', location: 'Accra Central Market', description: 'Large blaze at market stalls', status: 'new', severity: 'high', region: 'greater_accra', lat: 5.5500, lng: -0.2000, createdAt: Date.now(), assignedUnit: null, responderId: null, media: [] },
+      { id: `inc-${uuidv4()}`, type: 'flood', location: 'Kumasi Riverfront', description: 'River overflow after heavy rains', status: 'en-route', severity: 'medium', region: 'ashanti', lat: 6.6885, lng: -1.6244, createdAt: Date.now() - 1800000, assignedUnit: 'team-1', responderId: 'resp002', media: [] },
+      { id: `inc-${uuidv4()}`, type: 'medical', location: 'Tema General Hospital', description: 'Mass casualty incident reported', status: 'new', severity: 'high', region: 'tema', lat: 5.6698, lng: 0.0167, createdAt: Date.now() - 3600000, assignedUnit: null, responderId: null, media: [] }
+    ];
+    incidentAssignments.push(...incidents);
+  }
+
+  const { type, region, severity } = req.query;
+  if (type) incidents = incidents.filter(i => i.type === type);
+  if (region) incidents = incidents.filter(i => i.region === region);
+  if (severity) incidents = incidents.filter(i => i.severity === severity);
+
+  res.json({ ok: true, incidents });
+});
+
+app.get('/api/coordinators/resources', coordinatorAuth, (req, res) => {
+  res.json({ ok: true, resources: resourceInventory });
+});
+
+app.get('/api/coordinators/resource-requests', coordinatorAuth, (req, res) => {
+  res.json({ ok: true, requests: backupRequests });
+});
+
+app.get('/api/coordinators/notifications', coordinatorAuth, (req, res) => {
+  const coordinatorId = req.user.userId;
+  const notifs = notificationQueue[coordinatorId] || [];
+  res.json({ ok: true, notifications: notifs });
+  notificationQueue[coordinatorId] = [];
+});
+
+app.patch('/api/coordinators/resource-requests/:requestId', coordinatorAuth, (req, res) => {
+  const { requestId } = req.params;
+  const { action, notes } = req.body;
+  const request = backupRequests.find(r => r.id === requestId);
+  if (!request) {
+    return res.status(404).json({ ok: false, error: 'Request not found' });
+  }
+  if (!['approve', 'deny'].includes(action)) {
+    return res.status(400).json({ ok: false, error: 'Action must be approve or deny' });
+  }
+  request.status = action === 'approve' ? 'approved' : 'denied';
+  request.reviewNotes = notes || '';
+  request.reviewedAt = Date.now();
+
+  const targetResponder = request.responderId;
+  if (notificationQueue[targetResponder]) {
+    notificationQueue[targetResponder].push({ message: `Your backup request ${requestId} was ${request.status}.`, read: false });
+  }
+
+  res.json({ ok: true, request });
+});
+
+app.patch('/api/coordinators/incidents/:incidentId/assign', coordinatorAuth, (req, res) => {
+  const { incidentId } = req.params;
+  const { responderId, unitId } = req.body;
+  const incident = incidentAssignments.find(i => i.id === incidentId);
+  if (!incident) {
+    return res.status(404).json({ ok: false, error: 'Incident not found' });
+  }
+  incident.responderId = responderId || incident.responderId;
+  incident.assignedUnit = unitId || incident.assignedUnit;
+  incident.status = incident.status === 'new' ? 'en-route' : incident.status;
+
+  if (responderId && notificationQueue[responderId]) {
+    notificationQueue[responderId].push({ message: `New incident assigned: ${incident.location}`, read: false });
+  }
+
+  res.json({ ok: true, incident });
+});
+
+app.post('/api/coordinators/broadcast', coordinatorAuth, (req, res) => {
+  const { channels, regions, message, title } = req.body;
+  const broadcast = {
+    id: `bcast-${uuidv4()}`,
+    channels: channels || ['sms'],
+    regions: regions || ['nationwide'],
+    title: title || 'Emergency Broadcast',
+    message,
+    createdAt: Date.now()
+  };
+  broadcastHistory.push(broadcast);
+  alertHistory.push({ ...broadcast, deliveredAt: Date.now() });
+
+  const targetResponders = Object.values(userSessions)
+    .filter(u => u.role === 'responder')
+    .map(u => u.responderId || u.userId);
+
+  targetResponders.forEach(id => {
+    notificationQueue[id] = notificationQueue[id] || [];
+    notificationQueue[id].push({ message: `Broadcast sent via ${broadcast.channels.join(', ')}: ${broadcast.title}`, read: false });
+  });
+
+  res.status(201).json({ ok: true, broadcast });
+});
+
+app.get('/api/coordinators/analytics', coordinatorAuth, (req, res) => {
+  const totalIncidents = incidentAssignments.length;
+  const openIncidents = incidentAssignments.filter(i => i.status !== 'resolved').length;
+  const byType = incidentAssignments.reduce((acc, i) => { acc[i.type] = (acc[i.type] || 0) + 1; return acc; }, {});
+  const byRegion = incidentAssignments.reduce((acc, i) => { acc[i.region] = (acc[i.region] || 0) + 1; return acc; }, {});
+  const bySeverity = incidentAssignments.reduce((acc, i) => { acc[i.severity] = (acc[i.severity] || 0) + 1; return acc; }, {});
+  const resourceSummary = resourceInventory.map(r => ({ id: r.id, type: r.type, status: r.status, location: r.location, quantity: r.quantity || r.capacity || 0 }));
+  res.json({ ok: true, analytics: { totalIncidents, openIncidents, byType, byRegion, bySeverity, resourceSummary, pendingRequests: backupRequests.filter(r => r.status === 'pending').length } });
+});
+
+app.get('/api/coordinators/reports/export', coordinatorAuth, (req, res) => {
+  const format = req.query.format || 'csv';
+  const rows = incidentAssignments.map(i => ({
+    id: i.id,
+    type: i.type,
+    location: i.location,
+    status: i.status,
+    severity: i.severity,
+    region: i.region,
+    assignedUnit: i.assignedUnit || '',
+    responderId: i.responderId || '',
+    createdAt: new Date(i.createdAt).toISOString()
+  }));
+  if (format === 'csv') {
+    const header = Object.keys(rows[0] || {}).join(',');
+    const body = rows.map(row => Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')).join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="coordinator_report.csv"');
+    return res.send(`${header}\n${body}`);
+  }
+  res.json({ ok: true, reports: rows });
 });
 
 app.listen(PORT, () => {
