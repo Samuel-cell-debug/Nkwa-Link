@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Responder Dashboard - Nkwa-Link</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: #f7fafc; color: #111827; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    /* Login Screen */
+    #loginScreen { position: fixed; inset: 0; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .login-box { background: white; border-radius: 12px; padding: 32px; max-width: 380px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .login-box h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .login-box p { color: #6b7280; margin-bottom: 24px; font-size: 14px; }
+    .login-box input { width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+    .login-box button { width: 100%; padding: 10px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .login-box button:hover { background: #dc2626; }
+    .login-error { background: #fef2f2; color: #991b1b; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; display: none; }
+    
+    /* Main Dashboard */
+    #dashboardScreen { display: none; }
+    header { background: white; border-bottom: 1px solid #e5e7eb; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    header h1 { font-size: 20px; }
+    .header-right { display: flex; gap: 12px; align-items: center; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; background: #fee2e2; color: #dc2626; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .logout-btn { padding: 8px 12px; background: #e5e7eb; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    
+    main { padding: 20px; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+    
+    @media (max-width: 1024px) { .grid-2 { grid-template-columns: 1fr; } .grid-3 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } .grid-3 { grid-template-columns: 1fr; } header { flex-direction: column; gap: 12px; text-align: center; } }
+    
+    .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h2 { font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    
+    /* Incident Queue */
+    .incident-item { background: #f9fafb; border-left: 4px solid #ef4444; padding: 12px; border-radius: 6px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+    .incident-item:hover { background: #f3f4f6; transform: translateX(4px); }
+    .incident-item.selected { background: #fee2e2; border-left-color: #dc2626; }
+    .incident-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .incident-type { font-weight: 600; text-transform: capitalize; }
+    .incident-status { font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; }
+    .incident-status.new { background: #fee2e2; color: #dc2626; }
+    .incident-status.en-route { background: #fef3c7; color: #92400e; }
+    .incident-status.resolved { background: #dcfce7; color: #166534; }
+    .incident-location { font-size: 13px; color: #6b7280; }
+    .incident-time { font-size: 12px; color: #9ca3af; }
+    
+    /* Incident Details */
+    #incidentDetails { display: none; }
+    .detail-section { margin-bottom: 16px; }
+    .detail-label { font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 4px; }
+    .detail-value { font-size: 14px; color: #111827; }
+    .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .media-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
+    
+    /* Status Update Buttons */
+    .status-buttons { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    .status-btn { flex: 1; min-width: 100px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; background: white; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .status-btn:hover { background: #f9fafb; }
+    .status-btn.new { border-color: #dc2626; color: #dc2626; }
+    .status-btn.en-route { border-color: #ea580c; color: #ea580c; }
+    .status-btn.resolved { border-color: #16a34a; color: #16a34a; }
+    .status-btn.active { background: currentColor; color: white; }
+    
+    /* Action Buttons */
+    .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .action-btn { flex: 1; min-width: 140px; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 13px; }
+    .action-btn-primary { background: #ef4444; color: white; }
+    .action-btn-primary:hover { background: #dc2626; }
+    .action-btn-secondary { background: #e5e7eb; color: #374151; }
+    .action-btn-secondary:hover { background: #d1d5db; }
+    
+    /* Modals */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; align-items: center; justify-content: center; }
+    .modal.show { display: flex; }
+    .modal-content { background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal-header { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; }
+    .modal-section { margin-bottom: 16px; }
+    .modal-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .modal-input, .modal-select, .modal-textarea { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-bottom: 8px; }
+    .modal-textarea { resize: vertical; min-height: 80px; }
+    .modal-checkbox { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .modal-checkbox input { width: auto; }
+    
+    /* Messaging */
+    #messagingPanel { display: none; background: #f9fafb; border-radius: 8px; padding: 12px; max-height: 300px; display: flex; flex-direction: column; }
+    .messages { flex: 1; overflow-y: auto; margin-bottom: 10px; }
+    .message { margin-bottom: 8px; padding: 8px; border-radius: 6px; font-size: 13px; }
+    .message.from-me { background: #dbeafe; text-align: right; margin-left: 20px; }
+    .message.from-coordinator { background: #e5e7eb; margin-right: 20px; }
+    .message-input { display: flex; gap: 6px; }
+    .message-input input { flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
+    .message-input button { padding: 8px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    
+    /* Notifications */
+    .notification { position: fixed; bottom: 20px; right: 20px; background: #dcfce7; color: #166534; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #16a34a; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 999; animation: slideIn 0.3s; max-width: 300px; }
+    @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    
+    /* Empty State */
+    .empty-state { text-align: center; padding: 40px 20px; color: #6b7280; }
+    .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <div class="login-box">
+      <h1>Responder Login</h1>
+      <p>Access your incident queue and team coordination tools</p>
+      <div class="login-error" id="loginError"></div>
+      <form id="loginForm">
+        <input id="username" type="text" placeholder="Username (e.g., resp001)" required />
+        <input id="password" type="password" placeholder="Password" required />
+        <button type="submit">Login</button>
+      </form>
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
+        <strong>Demo credentials:</strong><br/>
+        Username: <code style="background:#f3f4f6;padding:2px 4px">resp001</code><br/>
+        Password: <code style="background:#f3f4f6;padding:2px 4px">emergency123</code>
+      </div>
+    </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="dashboardScreen">
+    <header>
+      <h1>🚨 Responder Dashboard</h1>
+      <div class="header-right">
+        <div class="badge" id="newIncidentBadge" style="display:none">
+          <span id="newIncidentCount">0</span> New
+        </div>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="grid-2">
+        <!-- Left: Incident Queue -->
+        <div class="card">
+          <h2>📋 My Incident Queue</h2>
+          <div id="incidentQueue" style="max-height: 600px; overflow-y: auto;"></div>
+          <div id="noIncidents" class="empty-state">
+            <div class="empty-state-icon">✓</div>
+            <div>No incidents assigned</div>
+          </div>
+        </div>
+
+        <!-- Right: Incident Details & Actions -->
+        <div class="card">
+          <h2>🔍 Incident Details</h2>
+          <div id="noSelection" class="empty-state">
+            <div class="empty-state-icon">👈</div>
+            <div>Select an incident to view details</div>
+          </div>
+          <div id="incidentDetails">
+            <div class="detail-section">
+              <div class="detail-label">Incident Type</div>
+              <div class="detail-value" id="detailType"></div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-label">Location</div>
+              <div class="detail-value" id="detailLocation"></div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-label">Description</div>
+              <div class="detail-value" id="detailDescription"></div>
+            </div>
+            <div class="detail-section" id="detailMediaSection" style="display:none">
+              <div class="detail-label">Attached Media</div>
+              <div class="media-grid" id="detailMedia"></div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-label">Current Status</div>
+              <div class="status-buttons">
+                <button class="status-btn new" data-status="new">New</button>
+                <button class="status-btn en-route" data-status="en-route">En Route</button>
+                <button class="status-btn resolved" data-status="resolved">Resolved</button>
+              </div>
+            </div>
+            <div class="action-buttons">
+              <button class="action-btn action-btn-primary" id="requestBackupBtn">Request Backup</button>
+              <button class="action-btn action-btn-secondary" id="contactCoordBtn">Contact Coordinator</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messaging Panel -->
+      <div class="card" style="margin-top: 20px;">
+        <h2>💬 Coordinator Messages</h2>
+        <div id="messagingPanel">
+          <div class="messages" id="messageList"></div>
+          <div class="message-input">
+            <input id="messageInput" placeholder="Type a message..." />
+            <button id="sendMessageBtn">Send</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Backup Request Modal -->
+  <div id="backupModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        Request Backup Resources
+        <button class="modal-close" onclick="document.getElementById('backupModal').classList.remove('show')">&times;</button>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">Resource Type</div>
+        <select class="modal-select" id="resourceType">
+          <option value="">-- Select --</option>
+          <option value="ambulance">Ambulance</option>
+          <option value="fire_truck">Fire Truck</option>
+          <option value="police_unit">Police Unit</option>
+          <option value="personnel">Additional Personnel</option>
+          <option value="medical_supplies">Medical Supplies</option>
+        </select>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">Quantity</div>
+        <input class="modal-input" id="resourceQty" type="number" min="1" max="10" value="1" />
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">Urgency</div>
+        <select class="modal-select" id="resourceUrgency">
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">Details (optional)</div>
+        <textarea class="modal-textarea" id="resourceDetails" placeholder="Additional details..."></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="action-btn action-btn-primary" id="submitBackupBtn" style="flex:1">Submit Request</button>
+        <button class="action-btn action-btn-secondary" style="flex:1" onclick="document.getElementById('backupModal').classList.remove('show')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact Coordinator Modal -->
+  <div id="contactModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        Contact Coordinator
+        <button class="modal-close" onclick="document.getElementById('contactModal').classList.remove('show')">&times;</button>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">Issue Type</div>
+        <select class="modal-select" id="issueType">
+          <option value="">-- Select --</option>
+          <option value="clarification">Clarification Needed</option>
+          <option value="support">Technical Support</option>
+          <option value="escalation">Incident Escalation</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="modal-section">
+        <div class="modal-label">Message</div>
+        <textarea class="modal-textarea" id="contactMessage" placeholder="Describe your issue..."></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="action-btn action-btn-primary" id="submitContactBtn" style="flex:1">Send</button>
+        <button class="action-btn action-btn-secondary" style="flex:1" onclick="document.getElementById('contactModal').classList.remove('show')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let currentResponder = null;
+    let currentSession = null;
+    let selectedIncidentId = null;
+    let assignments = [];
+    let messages = [];
+    let notificationPoller = null;
+
+    // ===== LOGIN =====
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorDiv = document.getElementById('loginError');
+      
+      try {
+        const resp = await fetch(`${API_BASE}/responders/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await resp.json();
+        if (data && data.ok && data.token) {
+          currentResponder = data.responder;
+          currentSession = data.token;
+          localStorage.setItem('responderToken', data.token);
+          localStorage.setItem('responderId', data.responder.id);
+          switchToDashboard();
+          loadIncidents();
+          startNotificationPoller();
+        } else {
+          errorDiv.textContent = data.error || 'Login failed';
+          errorDiv.style.display = 'block';
+        }
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      currentResponder = null;
+      currentSession = null;
+      selectedIncidentId = null;
+      localStorage.removeItem('responderToken');
+      localStorage.removeItem('responderId');
+      if (notificationPoller) clearInterval(notificationPoller);
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('dashboardScreen').style.display = 'none';
+      document.getElementById('loginForm').reset();
+    });
+
+    // ===== LOAD INCIDENTS =====
+    async function loadIncidents() {
+      try {
+        const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/incidents`, {
+          headers: { 'Authorization': `Bearer ${currentSession}` }
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          assignments = data.incidents || [];
+          renderIncidentQueue();
+        }
+      } catch (err) {
+        console.error('Failed to load incidents:', err);
+      }
+    }
+
+    function renderIncidentQueue() {
+      const queue = document.getElementById('incidentQueue');
+      const noIncidents = document.getElementById('noIncidents');
+      queue.innerHTML = '';
+      
+      if (!assignments || assignments.length === 0) {
+        noIncidents.style.display = 'block';
+        return;
+      }
+      noIncidents.style.display = 'none';
+
+      assignments.forEach(incident => {
+        const item = document.createElement('div');
+        item.className = `incident-item ${incident.id === selectedIncidentId ? 'selected' : ''}`;
+        item.innerHTML = `
+          <div class="incident-item-header">
+            <span class="incident-type">${incident.type}</span>
+            <span class="incident-status ${incident.status}">${incident.status}</span>
+          </div>
+          <div class="incident-location">📍 ${incident.location}</div>
+          <div class="incident-time">${new Date(incident.createdAt).toLocaleString()}</div>
+        `;
+        item.addEventListener('click', () => selectIncident(incident));
+        queue.appendChild(item);
+      });
+    }
+
+    function selectIncident(incident) {
+      selectedIncidentId = incident.id;
+      document.getElementById('noSelection').style.display = 'none';
+      document.getElementById('incidentDetails').style.display = 'block';
+      
+      document.getElementById('detailType').textContent = incident.type;
+      document.getElementById('detailLocation').textContent = incident.location;
+      document.getElementById('detailDescription').textContent = incident.description;
+
+      // Update status buttons
+      document.querySelectorAll('.status-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.status === incident.status) {
+          btn.classList.add('active');
+        }
+      });
+
+      // Show media if available
+      if (incident.media && incident.media.length > 0) {
+        const mediaSection = document.getElementById('detailMediaSection');
+        const mediaGrid = document.getElementById('detailMedia');
+        mediaSection.style.display = 'block';
+        mediaGrid.innerHTML = '';
+        incident.media.forEach(m => {
+          const img = document.createElement('img');
+          img.src = m.path;
+          img.className = 'media-thumb';
+          img.style.cursor = 'pointer';
+          img.addEventListener('click', () => window.open(m.path, '_blank'));
+          mediaGrid.appendChild(img);
+        });
+      } else {
+        document.getElementById('detailMediaSection').style.display = 'none';
+      }
+
+      renderIncidentQueue();
+      loadMessages();
+    }
+
+    // ===== STATUS UPDATE =====
+    document.querySelectorAll('.status-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const newStatus = btn.dataset.status;
+        try {
+          const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/incidents/${selectedIncidentId}`, {
+            method: 'PATCH',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentSession}`
+            },
+            body: JSON.stringify({ status: newStatus })
+          });
+          const data = await resp.json();
+          if (data && data.ok) {
+            showNotification(`Status updated to ${newStatus}`);
+            loadIncidents();
+          }
+        } catch (err) {
+          showNotification(`Error: ${err.message}`, true);
+        }
+      });
+    });
+
+    // ===== BACKUP REQUEST =====
+    document.getElementById('requestBackupBtn').addEventListener('click', () => {
+      document.getElementById('backupModal').classList.add('show');
+    });
+
+    document.getElementById('submitBackupBtn').addEventListener('click', async () => {
+      const type = document.getElementById('resourceType').value;
+      const qty = document.getElementById('resourceQty').value;
+      const urgency = document.getElementById('resourceUrgency').value;
+      const details = document.getElementById('resourceDetails').value;
+
+      if (!type) {
+        showNotification('Please select a resource type', true);
+        return;
+      }
+
+      try {
+        const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/backup-request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentSession}`
+          },
+          body: JSON.stringify({
+            incidentId: selectedIncidentId,
+            resourceType: type,
+            quantity: qty,
+            urgency,
+            details
+          })
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          showNotification('Backup request submitted');
+          document.getElementById('backupModal').classList.remove('show');
+          document.getElementById('resourceType').value = '';
+          document.getElementById('resourceQty').value = '1';
+          document.getElementById('resourceDetails').value = '';
+        }
+      } catch (err) {
+        showNotification(`Error: ${err.message}`, true);
+      }
+    });
+
+    // ===== CONTACT COORDINATOR =====
+    document.getElementById('contactCoordBtn').addEventListener('click', () => {
+      document.getElementById('contactModal').classList.add('show');
+    });
+
+    document.getElementById('submitContactBtn').addEventListener('click', async () => {
+      const type = document.getElementById('issueType').value;
+      const msg = document.getElementById('contactMessage').value;
+
+      if (!type || !msg) {
+        showNotification('Please fill in all fields', true);
+        return;
+      }
+
+      try {
+        const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentSession}`
+          },
+          body: JSON.stringify({
+            toRole: 'coordinator',
+            type,
+            text: msg,
+            incidentId: selectedIncidentId
+          })
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          showNotification('Message sent to coordinator');
+          document.getElementById('contactModal').classList.remove('show');
+          document.getElementById('issueType').value = '';
+          document.getElementById('contactMessage').value = '';
+          loadMessages();
+        }
+      } catch (err) {
+        showNotification(`Error: ${err.message}`, true);
+      }
+    });
+
+    // ===== MESSAGING =====
+    async function loadMessages() {
+      if (!selectedIncidentId) return;
+      try {
+        const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/messages/${selectedIncidentId}`, {
+          headers: { 'Authorization': `Bearer ${currentSession}` }
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          messages = data.messages || [];
+          renderMessages();
+        }
+      } catch (err) {
+        console.error('Failed to load messages:', err);
+      }
+    }
+
+    function renderMessages() {
+      const list = document.getElementById('messageList');
+      list.innerHTML = '';
+      messages.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = `message ${msg.fromRole === 'responder' ? 'from-me' : 'from-coordinator'}`;
+        div.textContent = msg.text;
+        list.appendChild(div);
+      });
+      list.scrollTop = list.scrollHeight;
+    }
+
+    document.getElementById('sendMessageBtn').addEventListener('click', async () => {
+      const text = document.getElementById('messageInput').value.trim();
+      if (!text || !selectedIncidentId) return;
+
+      try {
+        const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentSession}`
+          },
+          body: JSON.stringify({
+            toRole: 'coordinator',
+            text,
+            incidentId: selectedIncidentId
+          })
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          document.getElementById('messageInput').value = '';
+          loadMessages();
+        }
+      } catch (err) {
+        console.error('Error sending message:', err);
+      }
+    });
+
+    // ===== REAL-TIME NOTIFICATIONS =====
+    function startNotificationPoller() {
+      notificationPoller = setInterval(async () => {
+        try {
+          const resp = await fetch(`${API_BASE}/responders/${currentResponder.id}/notifications`, {
+            headers: { 'Authorization': `Bearer ${currentSession}` }
+          });
+          const data = await resp.json();
+          if (data && data.notifications && data.notifications.length > 0) {
+            data.notifications.forEach(notif => {
+              showNotification(notif.message);
+            });
+            loadIncidents();
+          }
+        } catch (err) {
+          console.error('Notification poll error:', err);
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+
+    function showNotification(message, isError = false) {
+      const notif = document.createElement('div');
+      notif.className = 'notification';
+      if (isError) notif.style.background = '#fef2f2', notif.style.color = '#991b1b', notif.style.borderLeftColor = '#dc2626';
+      notif.textContent = message;
+      document.body.appendChild(notif);
+      setTimeout(() => notif.remove(), 4000);
+    }
+
+    // ===== UI HELPERS =====
+    function switchToDashboard() {
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('dashboardScreen').style.display = 'block';
+    }
+
+    // ===== INIT =====
+    window.addEventListener('load', () => {
+      const token = localStorage.getItem('responderToken');
+      const responderId = localStorage.getItem('responderId');
+      if (token && responderId) {
+        currentSession = token;
+        currentResponder = { id: responderId };
+        switchToDashboard();
+        loadIncidents();
+        startNotificationPoller();
+      }
+    });
+  </script>
+</body>
+</html>

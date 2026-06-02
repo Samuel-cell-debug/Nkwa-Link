@@ -59,6 +59,30 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 // In-memory fallback store
 const inMemoryReports = [];
 
+// ===== RESPONDER MANAGEMENT =====
+// In-memory stores for responders, sessions, assignments, backup requests, messages, notifications
+const responderCredentials = {
+  'resp001': { id: 'resp001', name: 'Officer Ahmed Hassan', password: 'emergency123', role: 'responder', unit: 'Fire Team Alpha' },
+  'resp002': { id: 'resp002', name: 'Nurse Ama Boateng', password: 'response456', role: 'responder', unit: 'Ambulance Unit 2' },
+  'resp003': { id: 'resp003', name: 'Officer Kwame Asante', password: 'field789', role: 'responder', unit: 'Police Patrol 7' }
+};
+
+const responderSessions = {}; // token -> { responderId, createdAt }
+const incidentAssignments = []; // { id, type, location, description, responder, status, createdAt, media }
+const backupRequests = []; // { id, responderId, incidentId, resourceType, quantity, urgency, status }
+const responderMessages = []; // { id, fromRole, toRole, responderId, incidentId, text, createdAt }
+const notificationQueue = {}; // responder -> [{ message, read }]
+
+// Auth middleware
+function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token || !responderSessions[token]) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  req.responder = responderSessions[token];
+  next();
+}
+
 // Health
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, time: Date.now(), dbConnected });
@@ -67,8 +91,19 @@ app.get('/api/health', (req, res) => {
 // Friendly root
 app.get('/', (req, res) => {
   res.json({
-    message: 'Nkwa-Link mock server with reporting module',
-    endpoints: ['/api/health', '/api/integrations/:type/connect', '/api/reports', '/api/integrations/sms-report', '/api/integrations/ussd-report']
+    message: 'Nkwa-Link mock server with reporting and responder modules',
+    endpoints: [
+      '/api/health',
+      '/api/integrations/:type/connect',
+      '/api/reports',
+      '/api/integrations/sms-report',
+      '/api/integrations/ussd-report',
+      '/api/responders/login',
+      '/api/responders/:responderId/incidents',
+      '/api/responders/:responderId/backup-request',
+      '/api/responders/:responderId/message',
+      '/api/responders/:responderId/notifications'
+    ]
   });
 });
 
@@ -198,6 +233,142 @@ app.post('/api/integrations/ussd-report', async (req, res) => {
     console.error('USSD report error:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
+});
+
+// ===== RESPONDER ENDPOINTS =====
+
+// Responder login
+app.post('/api/responders/login', (req, res) => {
+  const { username, password } = req.body;
+  const creds = responderCredentials[username];
+  
+  if (!creds || creds.password !== password) {
+    return res.status(401).json({ ok: false, error: 'Invalid credentials' });
+  }
+
+  const token = `token-${uuidv4()}`;
+  responderSessions[token] = { responderId: creds.id, createdAt: Date.now() };
+  notificationQueue[creds.id] = notificationQueue[creds.id] || [];
+  
+  res.json({
+    ok: true,
+    token,
+    responder: { id: creds.id, name: creds.name, unit: creds.unit }
+  });
+});
+
+// Get assigned incidents for a responder
+app.get('/api/responders/:responderId/incidents', authMiddleware, (req, res) => {
+  const { responderId } = req.params;
+  
+  // Simulate returning incidents assigned to this responder
+  const assigned = incidentAssignments.filter(inc => inc.responderId === responderId);
+  
+  // If empty, generate sample incidents for demo
+  if (assigned.length === 0) {
+    const samples = [
+      { id: `inc-${uuidv4()}`, type: 'fire', location: 'Accra Central Market', description: 'Fire outbreak at vendor stalls', responderId, status: 'new', createdAt: Date.now(), media: [] },
+      { id: `inc-${uuidv4()}`, type: 'medical', location: 'Tema Station', description: 'Person collapsed at station', responderId, status: 'new', createdAt: Date.now() - 300000, media: [] }
+    ];
+    samples.forEach(s => incidentAssignments.push(s));
+    return res.json({ ok: true, incidents: samples });
+  }
+  
+  res.json({ ok: true, incidents: assigned });
+});
+
+// Update incident status
+app.patch('/api/responders/:responderId/incidents/:incidentId', authMiddleware, (req, res) => {
+  const { responderId, incidentId } = req.params;
+  const { status } = req.body;
+  
+  const incident = incidentAssignments.find(inc => inc.id === incidentId && inc.responderId === responderId);
+  if (!incident) {
+    return res.status(404).json({ ok: false, error: 'Incident not found' });
+  }
+  
+  incident.status = status;
+  res.json({ ok: true, incident });
+});
+
+// Request backup resources
+app.post('/api/responders/:responderId/backup-request', authMiddleware, (req, res) => {
+  const { responderId } = req.params;
+  const { incidentId, resourceType, quantity, urgency, details } = req.body;
+  
+  const requestId = `backup-${uuidv4()}`;
+  const request = {
+    id: requestId,
+    responderId,
+    incidentId,
+    resourceType,
+    quantity,
+    urgency,
+    details,
+    status: 'pending',
+    createdAt: Date.now()
+  };
+  
+  backupRequests.push(request);
+  
+  // Add notification for coordinator
+  if (notificationQueue['coord001']) {
+    notificationQueue['coord001'].push({
+      message: `Backup request from ${responderId}: ${quantity} ${resourceType}`,
+      read: false
+    });
+  }
+  
+  res.status(201).json({ ok: true, requestId });
+});
+
+// Send message from responder to coordinator
+app.post('/api/responders/:responderId/message', authMiddleware, (req, res) => {
+  const { responderId } = req.params;
+  const { toRole, text, incidentId, type } = req.body;
+  
+  const messageId = `msg-${uuidv4()}`;
+  const message = {
+    id: messageId,
+    fromRole: 'responder',
+    toRole,
+    responderId,
+    incidentId,
+    text,
+    type,
+    createdAt: Date.now()
+  };
+  
+  responderMessages.push(message);
+  
+  // Add notification for coordinator
+  if (toRole === 'coordinator' && notificationQueue['coord001']) {
+    notificationQueue['coord001'].push({
+      message: `Message from responder ${responderId}: ${text.substring(0, 50)}...`,
+      read: false
+    });
+  }
+  
+  res.status(201).json({ ok: true, messageId });
+});
+
+// Get messages for a specific incident
+app.get('/api/responders/:responderId/messages/:incidentId', authMiddleware, (req, res) => {
+  const { responderId, incidentId } = req.params;
+  
+  const msgs = responderMessages.filter(m => m.responderId === responderId && m.incidentId === incidentId);
+  res.json({ ok: true, messages: msgs });
+});
+
+// Get notifications for responder (polling endpoint)
+app.get('/api/responders/:responderId/notifications', authMiddleware, (req, res) => {
+  const { responderId } = req.params;
+  const notifs = notificationQueue[responderId] || [];
+  
+  res.json({ ok: true, notifications: notifs });
+  
+  // Clear notifications after sending
+  notificationQueue[responderId] = [];
 });
 
 app.listen(PORT, () => {
