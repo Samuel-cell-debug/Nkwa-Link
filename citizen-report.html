@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Citizen Emergency Report - Nkwa-Link</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:#f7fafc; color:#111827; }
+    .container{max-width:760px;margin:28px auto;padding:18px;background:white;border-radius:12px;box-shadow:0 6px 20px rgba(16,24,40,0.05)}
+    label{display:block;margin-bottom:6px;font-weight:600;font-size:13px}
+    input,select,textarea{width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px}
+    button{background:#ef4444;color:white;padding:10px 14px;border-radius:10px;border:none;cursor:pointer}
+    .muted{color:#6b7280;font-size:13px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .hidden{display:none}
+    .status{padding:10px;margin-top:10px;border-radius:8px}
+    .success{background:#ecfdf5;color:#065f46}
+    .error{background:#fef2f2;color:#991b1b}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="title">Citizen Emergency Report</h1>
+    <p class="muted" id="subtitle">Report an incident quickly — get a tracking ID after submission.</p>
+
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:flex-end">
+      <label for="lang" style="margin:0;font-weight:600;font-size:13px">Language</label>
+      <select id="lang" style="width:180px">
+        <option value="en">English</option>
+        <option value="twi">Twi</option>
+        <option value="ewe">Ewe</option>
+        <option value="hau">Hausa</option>
+      </select>
+    </div>
+
+    <form id="reportForm" style="margin-top:14px">
+      <div style="margin-bottom:12px">
+        <label id="labelType">Incident type</label>
+        <select id="incidentType" required>
+          <option value="">-- select --</option>
+          <option value="fire">Fire</option>
+          <option value="flood">Flood</option>
+          <option value="medical">Medical</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center">
+        <div style="flex:1">
+          <label id="labelLocation">Location</label>
+          <input id="locationInput" placeholder="Enter location or use GPS" />
+        </div>
+        <div style="width:140px">
+          <button type="button" id="useGps">Use GPS</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label id="labelDescription">Description</label>
+        <textarea id="description" rows="4" placeholder="Describe what is happening"></textarea>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label id="labelMedia">Photo / Video (optional)</label>
+        <input id="mediaInput" type="file" accept="image/*,video/*" multiple />
+      </div>
+
+      <input type="hidden" id="languageField" name="language" value="en" />
+
+      <div style="display:flex;gap:10px">
+        <button type="submit">Submit Report</button>
+        <button type="button" id="clearBtn" style="background:#6b7280">Clear</button>
+      </div>
+    </form>
+
+    <div id="status" class="status hidden"></div>
+  </div>
+
+  <script>
+    const translations = {
+      en: {
+        title: 'Citizen Emergency Report',
+        subtitle: 'Report an incident quickly — get a tracking ID after submission.',
+        incidentType: 'Incident type',
+        location: 'Location',
+        description: 'Description',
+        media: 'Photo / Video (optional)',
+        submit: 'Submit Report',
+        usingGps: 'Using GPS...',
+        gpsFailed: 'Unable to get GPS location',
+        success: 'Report submitted. Tracking ID:',
+        error: 'Submission failed:'
+      },
+      twi: {
+        title: 'Akonto asɛm nanmusɛm',
+        subtitle: 'Kyerɛ asɛm no ntɛm — nya tracking ID akyi.',
+        incidentType: 'Ahomee ho asɛm',
+        location: 'Beaeɛ',
+        description: 'Nsɛm a wɔde kyerɛ',
+        media: 'Mfonini / Video (yɛ adwuma mu)',
+        submit: 'Tumi Som Asɛm',
+        usingGps: 'Resesa GPS...',
+        gpsFailed: 'GPU nkɔso ntumi nnya beaeɛ',
+        success: 'Asɛm asom. Tracking ID:',
+        error: 'Som no antumi nnyina mu:'
+      },
+      ewe: {
+        title: 'Citizens Report',
+        subtitle: 'Yɔ report alo — nye tracking ID.',
+        incidentType: 'Incident type',
+        location: 'Dɔwɔla',
+        description: 'Nɔviwo katã',
+        media: 'Foto / Video (gake nye bubu)',
+        submit: 'Sɔ Report',
+        usingGps: 'Lɔlɔ̃ GPS...',
+        gpsFailed: 'Menye GPS hã',
+        success: 'Report ƒe nuɖeɖe. Tracking ID:',
+        error: 'Report le agbe:'
+      },
+      hau: {
+        title: 'Rahoton Gaggawa',
+        subtitle: 'Aika rahoto cikin sauri — sami Tracking ID.',
+        incidentType: 'Nau\'in haɗari',
+        location: 'Wuri',
+        description: 'Bayani',
+        media: 'Hoto / Bidiyo (zaɓi)',
+        submit: 'Aika Rahoto',
+        usingGps: 'Ana amfani da GPS...',
+        gpsFailed: 'Ba a iya samun GPS ba',
+        success: 'An karɓi rahoto. Tracking ID:',
+        error: 'Aika rahoto bai yi nasara ba:'
+      }
+    };
+
+    const form = document.getElementById('reportForm');
+    const status = document.getElementById('status');
+    const langSelect = document.getElementById('lang');
+    const languageField = document.getElementById('languageField');
+
+    function applyTranslations() {
+      const l = langSelect.value || 'en';
+      const t = translations[l] || translations.en;
+      document.getElementById('title').textContent = t.title;
+      document.getElementById('subtitle').textContent = t.subtitle;
+      document.getElementById('labelType').textContent = t.incidentType;
+      document.getElementById('labelLocation').textContent = t.location;
+      document.getElementById('labelDescription').textContent = t.description;
+      document.getElementById('labelMedia').textContent = t.media;
+      document.querySelector('#reportForm button[type="submit"]').textContent = t.submit;
+      languageField.value = l;
+    }
+
+    langSelect.addEventListener('change', applyTranslations);
+    applyTranslations();
+
+    document.getElementById('useGps').addEventListener('click', async () => {
+      const l = langSelect.value || 'en';
+      const t = translations[l] || translations.en;
+      status.className = 'status';
+      status.textContent = t.usingGps;
+      status.classList.remove('hidden');
+
+      if (!navigator.geolocation) {
+        status.className = 'status error';
+        status.textContent = t.gpsFailed;
+        return;
+      }
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const coords = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+        document.getElementById('locationInput').value = coords;
+        status.className = 'status success';
+        status.textContent = 'GPS location captured';
+        setTimeout(()=> status.classList.add('hidden'), 2500);
+      }, (err) => {
+        status.className = 'status error';
+        status.textContent = t.gpsFailed;
+      }, { enableHighAccuracy: true, timeout: 8000 });
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      form.reset();
+      applyTranslations();
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      status.classList.add('hidden');
+      const l = langSelect.value || 'en';
+      const t = translations[l] || translations.en;
+
+      const type = document.getElementById('incidentType').value;
+      const location = document.getElementById('locationInput').value;
+      const description = document.getElementById('description').value;
+      const files = document.getElementById('mediaInput').files;
+
+      if (!type || !location) {
+        status.className = 'status error';
+        status.textContent = 'Please select incident type and location';
+        status.classList.remove('hidden');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('type', type);
+      fd.append('location', location);
+      fd.append('description', description);
+      fd.append('language', l);
+      fd.append('source', 'web');
+
+      for (let i=0;i<files.length;i++) {
+        fd.append('media', files[i]);
+      }
+
+      try {
+        const resp = await fetch('/api/reports', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data && data.ok && data.trackingId) {
+          status.className = 'status success';
+          status.textContent = `${t.success} ${data.trackingId}`;
+          status.classList.remove('hidden');
+          form.reset();
+          applyTranslations();
+        } else {
+          status.className = 'status error';
+          status.textContent = `${t.error} ${data.error || 'unknown'}`;
+          status.classList.remove('hidden');
+        }
+      } catch (err) {
+        status.className = 'status error';
+        status.textContent = `${t.error} ${err.message}`;
+        status.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
