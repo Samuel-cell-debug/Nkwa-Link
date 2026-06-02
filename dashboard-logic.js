@@ -372,22 +372,6 @@ function renderCitizenDashboard() {
     renderRoleHint('citizen');
 }
 
-function renderCitizenAlerts() {
-    const container = document.getElementById('citizenAlertsContainer');
-    if (!container) return;
-
-    const alertItems = incidents
-        .filter(i => ['reported', 'en-route'].includes(i.status))
-        .sort((a, b) => getPriorityValue(b.priority) - getPriorityValue(a.priority));
-
-    if (alertItems.length === 0) {
-        container.innerHTML = `<div class="rounded-xl border border-dashed border-gray-300 p-6 text-center text-gray-500">No active alerts in your area right now. Stay safe and report any emergencies immediately.</div>`;
-        return;
-    }
-
-    container.innerHTML = alertItems.map(incident => `
-            <div onclick="showIncidentDetails('${incident.id}')" class="incident-card incident-card-${incident.priority} bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all">
-                <div class="flex items-start justify-between">
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="status-badge status-${incident.priority}">
