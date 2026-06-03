@@ -375,7 +375,7 @@
           <td>${incident.type}</td>
           <td>${incident.severity}</td>
           <td><span class="status-pill ${statusClass}">${incident.status}</span></td>
-          <td><button class="button outline button-sm" onclick="openAssignModal('${incident.id}')">Assign</button></td>
+          <td><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="button outline button-sm" onclick="openAssignModal('${incident.id}')">Assign</button>${incident.type === 'fire' ? `<button class="button primary button-sm" onclick="forwardFireIncident('${incident.id}')">Forward</button>` : ''}${incident.type === 'medical' ? `<button class="button primary button-sm" onclick="forwardAmbulanceIncident('${incident.id}')">Forward Ambulance</button>` : ''}</div></td>
         </tr>`;
       }).join('');
       renderHeatmap();
@@ -499,6 +499,35 @@
         showToast('Broadcast delivered to active responder channels.');
       } else {
         showToast(data.error || 'Broadcast failed');
+      }
+    }
+
+    async function forwardFireIncident(incidentId) {
+      const response = await fetch(`${API_BASE}/coordinators/incidents/${incidentId}/forward-fire`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` }
+      });
+      const data = await response.json();
+      if (data.ok) {
+        showToast('Fire incident forwarded successfully to Fire Service.');
+      } else {
+        showToast(data.error || 'Forwarding failed');
+      }
+    }
+
+    async function forwardAmbulanceIncident(incidentId) {
+      // Optional: ask for consent confirmation when forwarding identifiable patient info
+      const consent = confirm('Do you have consent to share patient details with the ambulance service? Click OK to proceed.');
+      const response = await fetch(`${API_BASE}/coordinators/incidents/${incidentId}/forward-ambulance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ consent })
+      });
+      const data = await response.json();
+      if (data.ok) {
+        showToast(`Ambulance notified. ETA ~${data.etaMinutes} minutes.`);
+      } else {
+        showToast(data.error || 'Forwarding to ambulance failed');
       }
     }
 

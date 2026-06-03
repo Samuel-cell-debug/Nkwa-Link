@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const { v4: uuidv4 } = require('uuid');
 const mongoose = require('mongoose');
 
@@ -87,6 +88,16 @@ const resourceInventory = [
 ];
 const alertHistory = [];
 const broadcastHistory = [];
+const fireServiceLogs = [];
+const policeServiceLogs = [];
+const FIRE_SERVICE_API_KEY = process.env.FIRE_SERVICE_API_KEY || 'fire-service-secret';
+const FIRE_SERVICE_URL = process.env.FIRE_SERVICE_URL || 'https://gnfs.example.gov.gh/api/incidents';
+const POLICE_SERVICE_API_KEY = process.env.POLICE_SERVICE_API_KEY || 'police-service-secret';
+const POLICE_SERVICE_OAUTH_TOKEN = process.env.POLICE_SERVICE_OAUTH_TOKEN || 'police-oauth-token';
+const SERVER_BASE_URL = process.env.SERVER_BASE_URL || `http://localhost:${PORT}`;
+const AMBULANCE_SERVICE_API_KEY = process.env.AMBULANCE_SERVICE_API_KEY || 'ambulance-service-secret';
+const AMBULANCE_SERVICE_URL = process.env.AMBULANCE_SERVICE_URL || 'https://gna.example.gov.gh/api/dispatch';
+const ambulanceServiceLogs = [];
 
 function inferRegion(location) {
   const text = (location || '').toLowerCase();
@@ -94,6 +105,121 @@ function inferRegion(location) {
   if (text.includes('kumasi') || text.includes('ashanti')) return 'ashanti';
   if (text.includes('volta')) return 'volta';
   return 'greater_accra';
+}
+
+function buildEvidenceLinks(media = []) {
+  return media.map(item => {
+    if (!item.path) return null;
+    if (item.path.startsWith('http')) return item.path;
+    return `${SERVER_BASE_URL}/${item.path.replace(/^[/.]+/, '')}`;
+  }).filter(Boolean);
+}
+
+function maskPII(value = '') {
+  if (!value) return '';
+  // Mask phone numbers: keep last 3 digits
+  const phone = String(value).replace(/[^0-9]/g, '');
+  if (phone.length >= 7) {
+    return phone.replace(new RegExp(`^(.*)(.{3})$`), (m, a, b) => `${a.replace(/./g, '*')}${b}`);
+  }
+  // Fallback: partially mask
+  return value.replace(/.(?=.{2})/g, '*');
+}
+
+function httpsPostJson(url, payload, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const json = JSON.stringify(payload);
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') {
+      return reject(new Error('Fire Service URL must use HTTPS'));
+    }
+
+    const options = {
+      protocol: parsed.protocol,
+      hostname: parsed.hostname,
+      port: parsed.port || 443,
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(json),
+        ...headers
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        const responsePayload = body ? JSON.parse(body) : null;
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve({ statusCode: res.statusCode, body: responsePayload });
+        } else {
+          const error = new Error(`Fire Service returned ${res.statusCode}`);
+          error.statusCode = res.statusCode;
+          error.body = responsePayload;
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.write(json);
+    req.end();
+  });
+}
+
+async function forwardToFireService(incident, retries = 3) {
+  const payload = {
+    incidentId: incident.id,
+    type: incident.type,
+    location: incident.location,
+    description: incident.description || 'No citizen description provided',
+    attachedMedia: buildEvidenceLinks(incident.media),
+    evidenceLinks: buildEvidenceLinks(incident.media),
+    reportedAt: new Date(incident.createdAt).toISOString(),
+    source: incident.source || 'web'
+  };
+
+  const logEntry = {
+    id: `fire-log-${uuidv4()}`,
+    incidentId: incident.id,
+    status: 'pending',
+    payload,
+    attempts: [],
+    createdAt: Date.now()
+  };
+  fireServiceLogs.push(logEntry);
+  console.log('[FireService] Forwarding fire incident', { incidentId: incident.id, location: incident.location });
+
+  let attempt = 0;
+  while (attempt < retries) {
+    attempt += 1;
+    const attemptRecord = { attempt, attemptedAt: Date.now() };
+    try {
+      const response = await httpsPostJson(FIRE_SERVICE_URL, payload, {
+        'x-service-api-key': FIRE_SERVICE_API_KEY
+      });
+      attemptRecord.status = 'success';
+      attemptRecord.response = response.body;
+      logEntry.status = 'success';
+      logEntry.deliveredAt = Date.now();
+      logEntry.attempts.push(attemptRecord);
+      return { payload, logEntry };
+    } catch (error) {
+      attemptRecord.status = 'failed';
+      attemptRecord.error = error.message;
+      logEntry.attempts.push(attemptRecord);
+      console.warn('[FireService] Attempt failed', { incidentId: incident.id, attempt, error: error.message });
+      if (attempt >= retries) {
+        logEntry.status = 'failed';
+        logEntry.failedAt = Date.now();
+        logEntry.error = error.message;
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300 * Math.pow(2, attempt - 1)));
+    }
+  }
 }
 
 function createIncidentFromReport(report) {
@@ -120,6 +246,8 @@ function createIncidentFromReport(report) {
     assignedUnit: null,
     responderId: null,
     media: report.media || []
+    ,
+    meta: report.meta || {}
   };
 }
 
@@ -132,6 +260,25 @@ function authMiddleware(req, res, next) {
   req.user = userSessions[token];
   req.responder = req.user;
   next();
+}
+
+function fireServiceAuth(req, res, next) {
+  const apiKey = req.headers['x-service-api-key'] || req.headers.authorization?.split(' ')[1];
+  if (!apiKey || apiKey !== FIRE_SERVICE_API_KEY) {
+    console.warn('[FireService] Unauthorized request attempt');
+    return res.status(401).json({ ok: false, error: 'Invalid fire-service authentication' });
+  }
+  next();
+}
+
+function policeServiceAuth(req, res, next) {
+  const apiKey = req.headers['x-service-api-key'];
+  const bearerToken = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null;
+  if (apiKey === POLICE_SERVICE_API_KEY || bearerToken === POLICE_SERVICE_OAUTH_TOKEN) {
+    return next();
+  }
+  console.warn('[PoliceService] Unauthorized request attempt');
+  return res.status(401).json({ ok: false, error: 'Invalid police-service authentication' });
 }
 
 function coordinatorAuth(req, res, next) {
@@ -172,7 +319,9 @@ app.get('/', (req, res) => {
       '/api/coordinators/incidents/:incidentId/assign',
       '/api/coordinators/broadcast',
       '/api/coordinators/analytics',
-      '/api/coordinators/reports/export'
+      '/api/coordinators/reports/export',
+      '/api/integrations/fire-service/forward',
+      '/api/integrations/police-service/forward'
     ]
   });
 });
@@ -535,6 +684,251 @@ app.patch('/api/coordinators/incidents/:incidentId/assign', coordinatorAuth, (re
   }
 
   res.json({ ok: true, incident });
+});
+
+app.post('/api/coordinators/incidents/:incidentId/forward-fire', coordinatorAuth, async (req, res) => {
+  const { incidentId } = req.params;
+  const incident = incidentAssignments.find(i => i.id === incidentId);
+  if (!incident) {
+    console.warn('[FireService] Incident lookup failed:', incidentId);
+    return res.status(404).json({ ok: false, error: 'Incident not found' });
+  }
+  if (incident.type !== 'fire') {
+    return res.status(400).json({ ok: false, error: 'Only fire-related incidents may be forwarded' });
+  }
+  try {
+    const result = await forwardToFireService(incident);
+    return res.json({ ok: true, forwarded: true, forwardedPayload: result.payload });
+  } catch (error) {
+    console.error('[FireService] Forward failed', { incidentId: incident.id, error: error.message });
+    return res.status(502).json({ ok: false, error: 'Failed to forward incident to Fire Service', details: error.message });
+  }
+});
+
+app.post('/api/coordinators/incidents/:incidentId/forward-ambulance', coordinatorAuth, async (req, res) => {
+  const { incidentId } = req.params;
+  const { consent } = req.body;
+  const incident = incidentAssignments.find(i => i.id === incidentId);
+  if (!incident) {
+    console.warn('[AmbulanceService] Incident lookup failed:', incidentId);
+    return res.status(404).json({ ok: false, error: 'Incident not found' });
+  }
+  if (incident.type !== 'medical') {
+    return res.status(400).json({ ok: false, error: 'Only medical incidents may be forwarded to ambulance service' });
+  }
+
+  // Apply explicit consent if provided
+  if (typeof consent === 'boolean') incident.meta = incident.meta || {}, incident.meta.consent = consent;
+
+  try {
+    const eta = getEstimatedResponseTime(incident);
+    const result = await forwardToAmbulanceService(incident);
+    return res.json({ ok: true, forwarded: true, forwardedPayload: result.payload, etaMinutes: eta });
+  } catch (error) {
+    console.error('[AmbulanceService] Forward failed', { incidentId: incident.id, error: error.message });
+    return res.status(502).json({ ok: false, error: 'Failed to forward incident to Ambulance Service', details: error.message });
+  }
+});
+
+app.post('/api/integrations/fire-service/forward', fireServiceAuth, async (req, res) => {
+  const { incidentId } = req.body;
+  if (!incidentId) {
+    return res.status(400).json({ ok: false, error: 'incidentId is required' });
+  }
+
+  const incident = incidentAssignments.find(i => i.id === incidentId);
+  if (!incident) {
+    console.warn('[FireService] Incident lookup failed:', incidentId);
+    return res.status(404).json({ ok: false, error: 'Incident not found' });
+  }
+
+  if (incident.type !== 'fire') {
+    return res.status(400).json({ ok: false, error: 'Only fire-related incidents may be forwarded' });
+  }
+  try {
+    const result = await forwardToFireService(incident);
+    return res.status(200).json({ ok: true, forwarded: true, payload: result.payload });
+  } catch (error) {
+    console.error('[FireService] Forward failed', { incidentId: incident.id, error: error.message });
+    return res.status(502).json({ ok: false, error: 'Failed to forward incident to Fire Service', details: error.message });
+  }
+});
+
+app.post('/api/integrations/police-service/forward', policeServiceAuth, async (req, res) => {
+  const { incidentId } = req.body;
+  if (!incidentId) {
+    return res.status(400).json({ ok: false, error: 'incidentId is required' });
+  }
+
+  const incident = incidentAssignments.find(i => i.id === incidentId);
+  if (!incident) {
+    console.warn('[PoliceService] Incident lookup failed:', incidentId);
+    return res.status(404).json({ ok: false, error: 'Incident not found' });
+  }
+
+  if (!['crime', 'security', 'police'].includes(incident.type)) {
+    return res.status(400).json({ ok: false, error: 'Only security-related incidents may be forwarded' });
+  }
+
+  const payload = {
+    incidentId: incident.id,
+    type: incident.type,
+    location: incident.location,
+    description: incident.description || 'No citizen description provided',
+    evidenceLinks: buildEvidenceLinks(incident.media),
+    reportedAt: new Date(incident.createdAt).toISOString(),
+    source: incident.source || 'web'
+  };
+
+  const logEntry = {
+    id: `police-log-${uuidv4()}`,
+    incidentId: incident.id,
+    status: 'pending',
+    payload,
+    createdAt: Date.now()
+  };
+  policeServiceLogs.push(logEntry);
+  console.log('[PoliceService] Forwarding security incident', { incidentId: incident.id, location: incident.location });
+
+  try {
+    await new Promise((resolve, reject) => {
+      const latency = 250 + Math.floor(Math.random() * 250);
+      setTimeout(() => {
+        if (Math.random() < 0.9) return resolve();
+        return reject(new Error('Simulated GPS API outage or police service unavailable'));
+      }, latency);
+    });
+
+    logEntry.status = 'success';
+    logEntry.deliveredAt = Date.now();
+    console.log('[PoliceService] Forward successful', { incidentId: incident.id });
+    return res.status(200).json({ ok: true, forwarded: true, payload });
+  } catch (error) {
+    logEntry.status = 'failed';
+    logEntry.error = error.message;
+    logEntry.failedAt = Date.now();
+    console.error('[PoliceService] Forward failed', { incidentId: incident.id, error: error.message });
+    return res.status(502).json({ ok: false, error: 'Failed to forward incident to Police Service', details: error.message });
+  }
+});
+
+// Ambulance service auth (API key) and forwarding
+function ambulanceServiceAuth(req, res, next) {
+  const apiKey = req.headers['x-service-api-key'] || req.headers.authorization?.split(' ')[1];
+  if (!apiKey || apiKey !== AMBULANCE_SERVICE_API_KEY) {
+    console.warn('[AmbulanceService] Unauthorized request attempt');
+    return res.status(401).json({ ok: false, error: 'Invalid ambulance-service authentication' });
+  }
+  next();
+}
+
+function getEstimatedResponseTime(incident) {
+  // Simple heuristics: high -> 8m, medium -> 15m, low -> 25m
+  if (!incident) return 20;
+  const sev = (incident.severity || '').toLowerCase();
+  if (sev === 'high') return 8;
+  if (sev === 'medium') return 15;
+  return 25;
+}
+
+async function forwardToAmbulanceService(incident, retries = 2) {
+  // Respect consent if present
+  if (incident.meta && incident.meta.consent === false) {
+    throw new Error('No consent to share personal data');
+  }
+
+  const payload = {
+    incidentId: incident.id,
+    type: incident.type,
+    location: incident.location,
+    description: incident.description || 'No description',
+    patient: incident.meta?.patient ? {
+      name: incident.meta.patient.name ? maskPII(incident.meta.patient.name) : undefined,
+      age: incident.meta.patient.age || undefined,
+      phone: incident.meta.patient.phone ? maskPII(incident.meta.patient.phone) : undefined,
+      conditions: incident.meta.patient.conditions || undefined
+    } : undefined,
+    evidenceLinks: buildEvidenceLinks(incident.media),
+    reportedAt: new Date(incident.createdAt).toISOString(),
+    source: incident.source || 'web'
+  };
+
+  const logEntry = {
+    id: `ambulance-log-${uuidv4()}`,
+    incidentId: incident.id,
+    status: 'pending',
+    payload: { ...payload, patient: payload.patient },
+    attempts: [],
+    createdAt: Date.now()
+  };
+  ambulanceServiceLogs.push(logEntry);
+
+  let attempt = 0;
+  while (attempt < retries) {
+    attempt += 1;
+    const attemptRecord = { attempt, attemptedAt: Date.now() };
+    try {
+      // Use HTTPS post helper; ensure URL is https
+      const response = await httpsPostJson(AMBULANCE_SERVICE_URL, payload, { 'x-service-api-key': AMBULANCE_SERVICE_API_KEY });
+      attemptRecord.status = 'success';
+      attemptRecord.response = response.body;
+      logEntry.status = 'success';
+      logEntry.deliveredAt = Date.now();
+      logEntry.attempts.push(attemptRecord);
+
+      // Notify available ambulance units (real-time notifications)
+      resourceInventory.filter(r => r.type === 'ambulance').forEach(unit => {
+        const nid = unit.id;
+        notificationQueue[nid] = notificationQueue[nid] || [];
+        notificationQueue[nid].push({ message: `Dispatch: New medical incident at ${incident.location}`, incidentId: incident.id, read: false });
+      });
+
+      return { payload, logEntry };
+    } catch (error) {
+      attemptRecord.status = 'failed';
+      attemptRecord.error = error.message;
+      logEntry.attempts.push(attemptRecord);
+      console.warn('[AmbulanceService] Attempt failed', { incidentId: incident.id, attempt, error: error.message });
+      if (attempt >= retries) {
+        logEntry.status = 'failed';
+        logEntry.failedAt = Date.now();
+        logEntry.error = error.message;
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * Math.pow(2, attempt - 1)));
+    }
+  }
+}
+
+// Endpoint: external ambulance integration (service-to-service)
+app.post('/api/integrations/ambulance-service/forward', ambulanceServiceAuth, async (req, res) => {
+  const { incidentId, consent } = req.body;
+  if (!incidentId) return res.status(400).json({ ok: false, error: 'incidentId is required' });
+
+  const incident = incidentAssignments.find(i => i.id === incidentId);
+  if (!incident) return res.status(404).json({ ok: false, error: 'Incident not found' });
+  if (incident.type !== 'medical') return res.status(400).json({ ok: false, error: 'Only medical incidents may be forwarded' });
+
+  // Apply explicit consent if provided in request
+  if (typeof consent === 'boolean') incident.meta = incident.meta || {}, incident.meta.consent = consent;
+
+  try {
+    const eta = getEstimatedResponseTime(incident);
+    const result = await forwardToAmbulanceService(incident);
+
+    // Send confirmation back to citizen (assuming contact in incident.meta)
+    const citizenContact = incident.meta?.contact || incident.meta?.patient?.phone || null;
+    if (citizenContact) {
+      const masked = maskPII(citizenContact);
+      // Enqueue a lightweight confirmation notification (simulated)
+      notificationQueue[citizenContact] = notificationQueue[citizenContact] || [];
+      notificationQueue[citizenContact].push({ message: `Ambulance dispatched. ETA ~${eta} minutes. Ref: ${incident.id}`, read: false });
+    }
+
+    return res.json({ ok: true, forwarded: true, trackingId: incident.id, etaMinutes: eta });
+  } catch (error) {
+    return res.status(502).json({ ok: false, error: 'Failed to forward to Ambulance Service', details: error.message });
+  }
 });
 
 app.post('/api/coordinators/broadcast', coordinatorAuth, (req, res) => {
